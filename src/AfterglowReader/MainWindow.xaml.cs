@@ -121,6 +121,7 @@ public partial class MainWindow : Window
             };
             ReaderView.NavigateToString(ReaderAssetLoader.LoadHtml());
             await WaitForReaderReadyAsync();
+            await ApplyReaderSettingsAsync();
             await RestoreLastBookAsync();
             TryFocusReaderIfRequested();
         }
@@ -603,6 +604,23 @@ public partial class MainWindow : Window
         await _stateStore.SaveSettingsAsync(_settings);
     }
 
+    private async Task HandleSettingsChangedAsync(SettingsChangedMessage settings)
+    {
+        await CaptureCurrentProgressAsync();
+        _settings = (_settings with { FontFamily = string.IsNullOrWhiteSpace(settings.FontFamily) ? _settings.FontFamily : settings.FontFamily, FontSize = settings.FontSize, LineHeight = settings.LineHeight, Opacity = settings.Opacity, ScrollPixelsPerSecond = settings.ScrollPixelsPerSecond }).Normalize();
+        Opacity = _settings.Opacity;
+        await ApplyReaderSettingsAsync();
+        await SaveWindowSettingsAsync();
+    }
+
+    private async Task ApplyReaderSettingsAsync()
+    {
+        if (ReaderView.CoreWebView2 is not null && _readerReady.Task.IsCompleted)
+        {
+            await ReaderView.CoreWebView2.ExecuteScriptAsync($"window.applyReaderSettings?.({JsonSerializer.Serialize(_settings)});");
+        }
+    }
+
     private void OnClosed(object? sender, EventArgs e)
     {
         var hwnd = new WindowInteropHelper(this).Handle;
@@ -707,6 +725,9 @@ public partial class MainWindow : Window
                     break;
                 case ReaderPointerEnteredMessage:
                     RequestReaderInteractionFocus();
+                    break;
+                case SettingsChangedMessage settings:
+                    _ = HandleSettingsChangedAsync(settings);
                     break;
             }
         }

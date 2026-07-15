@@ -12,8 +12,16 @@
         <button id="open-file" type="button">打开文件</button>
         <button id="directory-toggle" type="button">目录</button>
         <button id="auto-scroll" type="button">自动滚动</button>
+        <button id="settings-toggle" type="button">设置</button>
       </div>
     </header>
+    <section id="settings-panel" class="hidden" aria-label="阅读设置">
+      <label>字体 <select id="font-family"><option value="Microsoft YaHei">微软雅黑</option><option value="SimSun">宋体</option><option value="KaiTi">楷体</option></select></label>
+      <label>字号 <input id="font-size" type="range" min="12" max="64" step="1"></label>
+      <label>行距 <input id="line-height" type="range" min="1.1" max="3.5" step="0.1"></label>
+      <label>透明度 <input id="opacity" type="range" min="0.35" max="1" step="0.01"></label>
+      <label>滚动速度 <input id="scroll-speed" type="range" min="20" max="2000" step="10"></label>
+    </section>
     <div id="reader-body">
       <aside id="directory" aria-label="章节目录">
         <nav id="chapters" aria-label="chapters"></nav>

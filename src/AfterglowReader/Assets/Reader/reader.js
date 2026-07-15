@@ -4,6 +4,13 @@
   const openFile = document.getElementById('open-file');
   const directoryToggle = document.getElementById('directory-toggle');
   const autoScrollButton = document.getElementById('auto-scroll');
+  const settingsToggle = document.getElementById('settings-toggle');
+  const settingsPanel = document.getElementById('settings-panel');
+  const fontFamily = document.getElementById('font-family');
+  const fontSize = document.getElementById('font-size');
+  const lineHeight = document.getElementById('line-height');
+  const opacity = document.getElementById('opacity');
+  const scrollSpeed = document.getElementById('scroll-speed');
   const appLabel = document.getElementById('app-label');
   const toast = document.getElementById('toast');
   let raf = 0;
@@ -43,6 +50,18 @@
   directoryToggle.onclick = () => {
     chapters.classList.toggle('hidden');
     keepToolbarVisible();
+  };
+  const publishSettings = () => {
+    window.chrome?.webview?.postMessage(JSON.stringify({ type: 'settingsChanged', fontFamily: fontFamily.value, fontSize: Number(fontSize.value), lineHeight: Number(lineHeight.value), opacity: Number(opacity.value), scrollPixelsPerSecond: Number(scrollSpeed.value) }));
+  };
+  settingsToggle.onclick = () => { settingsPanel.classList.toggle('hidden'); keepToolbarVisible(); };
+  [fontFamily, fontSize, lineHeight, opacity, scrollSpeed].forEach(control => control.addEventListener('input', publishSettings));
+  window.applyReaderSettings = (settings) => {
+    document.documentElement.style.setProperty('--font-family', settings.fontFamily || 'Microsoft YaHei');
+    document.documentElement.style.setProperty('--font-size', `${settings.fontSize || 20}px`);
+    document.documentElement.style.setProperty('--line-height', settings.lineHeight || 1.9);
+    fontFamily.value = settings.fontFamily || 'Microsoft YaHei'; fontSize.value = settings.fontSize || 20; lineHeight.value = settings.lineHeight || 1.9; opacity.value = settings.opacity || 0.94; scrollSpeed.value = settings.scrollPixelsPerSecond || 220;
+    autoSpeed = settings.scrollPixelsPerSecond || 220;
   };
   autoScrollButton.onclick = () => {
     window.toggleAutoScroll?.();

@@ -19,6 +19,7 @@ internal sealed record WindowDragMessage : ReaderMessage;
 internal sealed record WindowResizeMessage(string? Edge) : ReaderMessage;
 
 internal sealed record ReaderPointerEnteredMessage : ReaderMessage;
+internal sealed record SettingsChangedMessage(string? FontFamily, double FontSize, double LineHeight, double Opacity, double ScrollPixelsPerSecond) : ReaderMessage;
 
 internal static class ReaderBridge
 {
@@ -47,6 +48,7 @@ internal static class ReaderBridge
             "beginWindowDrag" => new WindowDragMessage(),
             "beginWindowResize" => new WindowResizeMessage(GetString(root, "edge")),
             "readerPointerEntered" => new ReaderPointerEnteredMessage(),
+            "settingsChanged" => new SettingsChangedMessage(GetString(root, "fontFamily"), GetDouble(root, "fontSize"), GetDouble(root, "lineHeight"), GetDouble(root, "opacity"), GetDouble(root, "scrollPixelsPerSecond")),
             _ => null
         };
     }
