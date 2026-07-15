@@ -148,7 +148,8 @@ public sealed class BookLoaderTests
                 WindowLeft: -120,
                 WindowTop: 48,
                 WindowWidth: 860,
-                WindowHeight: 460));
+                WindowHeight: 460,
+                LastBookPath: @"C:\Books\last-book.txt"));
             await store.SaveProgressAsync([new BookProgress("book.txt", "ch-0-1", 12.5, DateTimeOffset.UtcNow)]);
 
             var settings = await store.LoadSettingsAsync();
@@ -158,6 +159,7 @@ public sealed class BookLoaderTests
             Assert.Equal(48, settings.WindowTop);
             Assert.Equal(860, settings.WindowWidth);
             Assert.Equal(460, settings.WindowHeight);
+            Assert.Equal(@"C:\Books\last-book.txt", settings.LastBookPath);
             Assert.Single(progress);
             Assert.Equal("ch-0-1", progress[0].ParagraphId);
         }

@@ -147,6 +147,8 @@
     return anchor ? { id: anchor.dataset.paragraphId, offset: anchor.getBoundingClientRect().top } : { id: null, offset: 0 };
   };
 
+  window.captureCurrentAnchor = () => anchorForWindowRequest();
+
   const requestWindow = (direction) => {
     if (windowRequestPending || !window.chrome?.webview) return;
     windowRequestPending = true;

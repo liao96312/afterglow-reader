@@ -13,7 +13,8 @@ public sealed record ReaderSettings(
     double? WindowLeft = null,
     double? WindowTop = null,
     double? WindowWidth = null,
-    double? WindowHeight = null)
+    double? WindowHeight = null,
+    string? LastBookPath = null)
 {
     public ReaderSettings Normalize()
         => this with
@@ -23,7 +24,8 @@ public sealed record ReaderSettings(
             Opacity = Math.Clamp(Opacity, 0.35, 1),
             ScrollPixelsPerSecond = Math.Clamp(ScrollPixelsPerSecond, 20, 2_000),
             WindowWidth = WindowWidth is { } width ? Math.Clamp(width, 360, 2_400) : null,
-            WindowHeight = WindowHeight is { } height ? Math.Clamp(height, 240, 2_000) : null
+            WindowHeight = WindowHeight is { } height ? Math.Clamp(height, 240, 2_000) : null,
+            LastBookPath = string.IsNullOrWhiteSpace(LastBookPath) ? null : LastBookPath.Trim()
         };
 }
 

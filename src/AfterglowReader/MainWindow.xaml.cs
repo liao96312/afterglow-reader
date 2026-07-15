@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Windows.Interop;
 using System.Windows.Input;
 using System.Text.Json;
+using System.IO;
 using AfterglowReader.Books;
 using AfterglowReader.Persistence;
 using AfterglowReader.Reader;
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
     private bool _pendingReaderInteractionFocus;
     private System.Windows.Threading.DispatcherTimer? _statusHideTimer;
     private readonly ReaderStateStore _stateStore = new();
+    private ReaderSettings _settings = new();
     private readonly List<BookProgress> _progress = [];
     private readonly TaskCompletionSource<bool> _readerReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _renderGate = new(1, 1);
@@ -78,9 +80,10 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        RestoreWindowSettings((await _stateStore.LoadSettingsAsync()).Normalize());
+        _settings = (await _stateStore.LoadSettingsAsync()).Normalize();
+        RestoreWindowSettings(_settings);
         _readerInteractionState = ReaderInteractionState.VisiblePassive;
-        _progress.AddRange(await _stateStore.LoadProgressAsync());
+        LoadProgress(await _stateStore.LoadProgressAsync());
         _tray = new TrayService(
             DispatchTrayAction,
             ShowWithoutActivation,
@@ -117,6 +120,7 @@ public partial class MainWindow : Window
             };
             ReaderView.NavigateToString(ReaderAssetLoader.LoadHtml());
             await WaitForReaderReadyAsync();
+            await RestoreLastBookAsync();
             TryFocusReaderIfRequested();
         }
         catch (Exception exception)
@@ -256,6 +260,7 @@ public partial class MainWindow : Window
 
     private void HideImmediately()
     {
+        _ = SaveProgressForLifecycleAsync("hide");
         _isHidden = true;
         _readerInteractionState = ReaderInteractionState.Hidden;
         _pendingReaderInteractionFocus = false;
@@ -387,54 +392,138 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog(this) == true)
         {
-            var loadCts = new CancellationTokenSource();
-            var previousLoadCts = Interlocked.Exchange(ref _bookLoadCts, loadCts);
-            previousLoadCts?.Cancel();
-            try
+            await OpenBookAsync(dialog.FileName, restoringLastBook: false);
+        }
+    }
+
+    private async Task RestoreLastBookAsync()
+    {
+        var path = NormalizeBookPath(_settings.LastBookPath);
+        if (path is null)
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            ShowStatus("上次阅读的书籍已移动或不存在。", hideAfterMilliseconds: 4_000);
+            return;
+        }
+
+        await OpenBookAsync(path, restoringLastBook: true);
+    }
+
+    private async Task<bool> OpenBookAsync(string path, bool restoringLastBook)
+    {
+        var normalizedPath = NormalizeBookPath(path);
+        if (normalizedPath is null)
+        {
+            ShowStatus("书籍路径无效。", hideAfterMilliseconds: 4_000);
+            return false;
+        }
+
+        var loadCts = new CancellationTokenSource();
+        var previousLoadCts = Interlocked.Exchange(ref _bookLoadCts, loadCts);
+        previousLoadCts?.Cancel();
+        try
+        {
+            if (_currentBookPath is not null)
             {
                 await SaveProgressNowAsync();
-                StatusText.Text = $"正在读取 {System.IO.Path.GetFileName(dialog.FileName)}…";
-                var book = await BookLoader.LoadAsync(dialog.FileName, loadCts.Token);
-                loadCts.Token.ThrowIfCancellationRequested();
-                _currentBookPath = dialog.FileName;
-                _session = new ReaderSession(book);
-                var saved = _progress.FirstOrDefault(item => string.Equals(item.Path, dialog.FileName, StringComparison.OrdinalIgnoreCase));
-                if (_session.RestoreToParagraph(saved?.ParagraphId))
-                {
-                    _lastAnchorId = saved?.ParagraphId;
-                    _lastAnchorOffset = saved?.ParagraphOffset ?? 0;
-                }
-                else
-                {
-                    _lastAnchorId = null;
-                    _lastAnchorOffset = 0;
-                }
-                _selectedChapterId = _session.GetChapterIdForParagraph(saved?.ParagraphId)
-                    ?? _session.CurrentWindow.Chapters.FirstOrDefault()?.Id;
-                await RenderChapterIndexAsync(book);
-                await RenderWindowAsync(_session.CurrentWindow, _lastAnchorId, _lastAnchorOffset, _selectedChapterId);
             }
-            catch (OperationCanceledException) when (loadCts.IsCancellationRequested)
-            {
-                // A newer open request superseded this parse.
-            }
-            catch (BookReaderException exception)
-            {
-                StatusText.Text = exception.Message;
-            }
-            catch (Exception exception)
-            {
-                App.LogDiagnostic("Books", $"open failed: {exception}");
-                StatusText.Text = "打开书籍失败，请查看诊断日志。";
-            }
-            finally
-            {
-                if (ReferenceEquals(_bookLoadCts, loadCts))
-                {
-                    _bookLoadCts = null;
-                }
 
-                loadCts.Dispose();
+            ShowStatus(restoringLastBook
+                ? $"正在恢复 {Path.GetFileName(normalizedPath)}…"
+                : $"正在读取 {Path.GetFileName(normalizedPath)}…");
+            var book = await BookLoader.LoadAsync(normalizedPath, loadCts.Token);
+            loadCts.Token.ThrowIfCancellationRequested();
+            _currentBookPath = normalizedPath;
+            _session = new ReaderSession(book);
+            var saved = _progress.FirstOrDefault(item => string.Equals(item.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
+            if (_session.RestoreToParagraph(saved?.ParagraphId))
+            {
+                _lastAnchorId = saved?.ParagraphId;
+                _lastAnchorOffset = saved?.ParagraphOffset ?? 0;
+            }
+            else
+            {
+                _lastAnchorId = null;
+                _lastAnchorOffset = 0;
+            }
+
+            _selectedChapterId = _session.GetChapterIdForParagraph(saved?.ParagraphId)
+                ?? _session.CurrentWindow.Chapters.FirstOrDefault()?.Id;
+            await RenderChapterIndexAsync(book);
+            await RenderWindowAsync(_session.CurrentWindow, _lastAnchorId, _lastAnchorOffset, _selectedChapterId);
+
+            _settings = _settings with { LastBookPath = normalizedPath };
+            await SaveWindowSettingsAsync();
+            StatusPanel.Visibility = Visibility.Collapsed;
+            return true;
+        }
+        catch (OperationCanceledException) when (loadCts.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (BookReaderException exception)
+        {
+            ShowStatus(restoringLastBook ? "无法恢复上次阅读的书籍。" : exception.Message, hideAfterMilliseconds: 4_000);
+            App.LogDiagnostic("Books", $"open failed: {exception.Message}");
+            return false;
+        }
+        catch (Exception exception)
+        {
+            App.LogDiagnostic("Books", $"open failed: {exception}");
+            ShowStatus(restoringLastBook ? "无法恢复上次阅读的书籍。" : "打开书籍失败，请查看诊断日志。", hideAfterMilliseconds: 4_000);
+            return false;
+        }
+        finally
+        {
+            if (ReferenceEquals(_bookLoadCts, loadCts))
+            {
+                _bookLoadCts = null;
+            }
+
+            loadCts.Dispose();
+        }
+    }
+
+    private static string? NormalizeBookPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path.Trim());
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
+        }
+    }
+
+    private void LoadProgress(IEnumerable<BookProgress> progress)
+    {
+        foreach (var item in progress)
+        {
+            var path = NormalizeBookPath(item.Path);
+            if (path is null || string.IsNullOrWhiteSpace(item.ParagraphId) || !double.IsFinite(item.ParagraphOffset))
+            {
+                continue;
+            }
+
+            var normalized = item with { Path = path };
+            var existing = _progress.FindIndex(value => string.Equals(value.Path, path, StringComparison.OrdinalIgnoreCase));
+            if (existing < 0)
+            {
+                _progress.Add(normalized);
+            }
+            else if (_progress[existing].UpdatedAt <= normalized.UpdatedAt)
+            {
+                _progress[existing] = normalized;
             }
         }
     }
@@ -501,12 +590,16 @@ public partial class MainWindow : Window
 
     private async Task SaveWindowSettingsAsync()
     {
-        await _stateStore.SaveSettingsAsync(new ReaderSettings(
-            Opacity: Opacity,
-            WindowLeft: double.IsFinite(Left) ? Left : null,
-            WindowTop: double.IsFinite(Top) ? Top : null,
-            WindowWidth: double.IsFinite(Width) ? Width : null,
-            WindowHeight: double.IsFinite(Height) ? Height : null));
+        _settings = (_settings with
+        {
+            Opacity = Opacity,
+            WindowLeft = double.IsFinite(Left) ? Left : null,
+            WindowTop = double.IsFinite(Top) ? Top : null,
+            WindowWidth = double.IsFinite(Width) ? Width : null,
+            WindowHeight = double.IsFinite(Height) ? Height : null,
+            LastBookPath = NormalizeBookPath(_settings.LastBookPath)
+        }).Normalize();
+        await _stateStore.SaveSettingsAsync(_settings);
     }
 
     private void OnClosed(object? sender, EventArgs e)
@@ -704,10 +797,14 @@ public partial class MainWindow : Window
     }
 
     private void RecordProgress(string? paragraphId, double offset)
+        => UpdateProgress(paragraphId, offset, scheduleDelayedSave: true, allowDuringShutdown: false);
+
+    private void UpdateProgress(string? paragraphId, double offset, bool scheduleDelayedSave, bool allowDuringShutdown)
     {
-        if (_shutdownRequested
+        if ((!allowDuringShutdown && _shutdownRequested)
             || string.IsNullOrWhiteSpace(_currentBookPath)
-            || string.IsNullOrWhiteSpace(paragraphId))
+            || string.IsNullOrWhiteSpace(paragraphId)
+            || !double.IsFinite(offset))
         {
             return;
         }
@@ -725,10 +822,13 @@ public partial class MainWindow : Window
             _progress.Add(value);
         }
 
-        _progressSaveCts?.Cancel();
-        _progressSaveCts?.Dispose();
-        _progressSaveCts = new CancellationTokenSource();
-        _progressSaveTask = SaveProgressAfterDelayAsync(_progressSaveCts.Token);
+        if (scheduleDelayedSave)
+        {
+            _progressSaveCts?.Cancel();
+            _progressSaveCts?.Dispose();
+            _progressSaveCts = new CancellationTokenSource();
+            _progressSaveTask = SaveProgressAfterDelayAsync(_progressSaveCts.Token);
+        }
     }
 
     private async Task SaveProgressAfterDelayAsync(CancellationToken cancellationToken)
@@ -767,14 +867,86 @@ public partial class MainWindow : Window
             }
         }
 
-        if (_currentBookPath is not null)
+        await CaptureCurrentProgressAsync();
+
+        if (_currentBookPath is not null && !string.IsNullOrWhiteSpace(_lastAnchorId))
         {
-            var value = new BookProgress(_currentBookPath, _lastAnchorId, _lastAnchorOffset, DateTimeOffset.UtcNow);
-            var existing = _progress.FindIndex(item => string.Equals(item.Path, _currentBookPath, StringComparison.OrdinalIgnoreCase));
-            if (existing >= 0) _progress[existing] = value; else _progress.Add(value);
+            UpdateProgress(_lastAnchorId, _lastAnchorOffset, scheduleDelayedSave: false, allowDuringShutdown: true);
         }
 
         await _stateStore.SaveProgressAsync(_progress);
+    }
+
+    private async Task SaveProgressForLifecycleAsync(string reason)
+    {
+        try
+        {
+            await SaveProgressNowAsync();
+            App.LogDiagnostic("Progress", $"saved for {reason}");
+        }
+        catch (Exception exception)
+        {
+            App.LogDiagnostic("Progress", $"save for {reason} failed: {exception}");
+        }
+    }
+
+    private async Task CaptureCurrentProgressAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_currentBookPath)
+            || ReaderView.CoreWebView2 is null
+            || !_readerReady.Task.IsCompleted)
+        {
+            return;
+        }
+
+        try
+        {
+            var script = ReaderView.CoreWebView2.ExecuteScriptAsync("window.captureCurrentAnchor?.() ?? null;");
+            if (await Task.WhenAny(script, Task.Delay(TimeSpan.FromMilliseconds(750))) != script)
+            {
+                _ = script.ContinueWith(completed => _ = completed.Exception,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+                App.LogDiagnostic("Progress", "capture current anchor timed out");
+                return;
+            }
+
+            var result = await script;
+            if (TryParseCapturedAnchor(result, out var paragraphId, out var offset))
+            {
+                UpdateProgress(paragraphId, offset, scheduleDelayedSave: false, allowDuringShutdown: true);
+            }
+        }
+        catch (Exception exception)
+        {
+            App.LogDiagnostic("Progress", $"capture current anchor failed: {exception.Message}");
+        }
+    }
+
+    private static bool TryParseCapturedAnchor(string json, out string? paragraphId, out double offset)
+    {
+        paragraphId = null;
+        offset = 0;
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("id", out var id)
+                || string.IsNullOrWhiteSpace(id.GetString())
+                || !root.TryGetProperty("offset", out var offsetElement)
+                || !offsetElement.TryGetDouble(out offset)
+                || !double.IsFinite(offset))
+            {
+                return false;
+            }
+
+            paragraphId = id.GetString();
+            return true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     private static bool IsReaderNavigation(string? uri)
