@@ -249,6 +249,26 @@ public sealed class BookLoaderTests
     }
 
     [Fact]
+    public async Task DoesNotPersistTransientReaderInteractionState()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-transient-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new ReaderStateStore(root);
+            await store.SaveSettingsAsync(new ReaderSettings(LastBookPath: @"C:\Books\current.txt"));
+
+            var persisted = await File.ReadAllTextAsync(Path.Combine(root, "settings.json"));
+            Assert.DoesNotContain("hidden", persisted, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("clickThrough", persisted, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("autoScroll", persisted, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReaderSessionKeepsOnlyThreeChaptersInTheRenderWindow()
     {
         var chapters = Enumerable.Range(0, 5)
