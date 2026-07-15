@@ -120,6 +120,23 @@ public sealed class BookLoaderTests
     }
 
     [Fact]
+    public async Task HonorsCancellationBeforeTextParsing()
+    {
+        var path = CreateTempFile("cancel.txt", "第一行\n第二行");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        try
+        {
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => BookLoader.LoadTextAsync(path, cancellation.Token));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task PersistsSettingsAndProgressAtomically()
     {
         var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-{Guid.NewGuid():N}");

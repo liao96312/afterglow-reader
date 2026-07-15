@@ -34,7 +34,7 @@ public static partial class BookLoader
         var bytes = await File.ReadAllBytesAsync(path, cancellationToken);
         var text = DecodeText(bytes);
         var title = Path.GetFileNameWithoutExtension(path);
-        return await Task.Run(() => BuildTextBook(path, title, text), cancellationToken);
+        return await Task.Run(() => BuildTextBook(path, title, text, cancellationToken), cancellationToken);
     }
 
     public static async Task<BookDocument> LoadEpubAsync(string path, CancellationToken cancellationToken = default)
@@ -58,6 +58,7 @@ public static partial class BookLoader
                     GuessChapterTitle(content.Content, chapterIndex),
                     paragraphs));
             }
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         if (chapters.Count == 0)
@@ -87,6 +88,7 @@ public static partial class BookLoader
 
             var title = string.IsNullOrWhiteSpace(mobi.Title) ? Path.GetFileNameWithoutExtension(path) : mobi.Title;
             var paragraphs = HtmlContent.ToParagraphs(mobi.Text, "mobi-0");
+            cancellationToken.ThrowIfCancellationRequested();
             if (paragraphs.Count == 0)
             {
                 var plain = Regex.Replace(mobi.Text, "<[^>]+>", " ", RegexOptions.Singleline).Trim();
@@ -105,45 +107,58 @@ public static partial class BookLoader
         }
     }
 
-    private static BookDocument BuildTextBook(string path, string title, string text)
+    private static BookDocument BuildTextBook(string path, string title, string text, CancellationToken cancellationToken)
     {
-        var chapters = SplitTextIntoChapters(text);
+        var chapters = SplitTextIntoChapters(text, cancellationToken);
         return new BookDocument(path, title, chapters);
     }
 
-    private static IReadOnlyList<BookChapter> SplitTextIntoChapters(string text)
+    private static IReadOnlyList<BookChapter> SplitTextIntoChapters(string text, CancellationToken cancellationToken)
     {
         var matches = ChapterHeadingRegex().Matches(text);
         if (matches.Count == 0)
         {
-            return ChunkParagraphsIntoChapters(TextToParagraphs(text, "ch-0"), "正文");
+            return ChunkParagraphsIntoChapters(TextToParagraphs(text, "ch-0", cancellationToken), "正文", cancellationToken);
         }
 
         var chapters = new List<BookChapter>();
         for (var index = 0; index < matches.Count; index++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var start = matches[index].Index;
             var end = index + 1 < matches.Count ? matches[index + 1].Index : text.Length;
             var body = text[start..end].Trim();
             var title = matches[index].Value.Trim();
-            var paragraphs = TextToParagraphs(body, $"ch-{index}");
+            var paragraphs = TextToParagraphs(body, $"ch-{index}", cancellationToken);
             if (paragraphs.Count > 0)
             {
                 chapters.Add(new BookChapter($"ch-{index}", title, paragraphs));
             }
         }
 
-        return chapters.Count == 0 ? ChunkParagraphsIntoChapters(TextToParagraphs(text, "ch-0"), "正文") : chapters;
+        return chapters.Count == 0
+            ? ChunkParagraphsIntoChapters(TextToParagraphs(text, "ch-0", cancellationToken), "正文", cancellationToken)
+            : chapters;
     }
 
-    private static IReadOnlyList<BookParagraph> TextToParagraphs(string text, string idPrefix)
+    private static IReadOnlyList<BookParagraph> TextToParagraphs(string text, string idPrefix, CancellationToken cancellationToken = default)
     {
         var lines = text.Replace("\r\n", "\n").Replace('\r', '\n')
             .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        return lines.Select((line, index) => HtmlContent.CreateParagraph($"{idPrefix}-{index}", line)).ToArray();
+        var paragraphs = new List<BookParagraph>(lines.Length);
+        for (var index = 0; index < lines.Length; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            paragraphs.Add(HtmlContent.CreateParagraph($"{idPrefix}-{index}", lines[index]));
+        }
+
+        return paragraphs;
     }
 
-    private static IReadOnlyList<BookChapter> ChunkParagraphsIntoChapters(IReadOnlyList<BookParagraph> paragraphs, string title)
+    private static IReadOnlyList<BookChapter> ChunkParagraphsIntoChapters(
+        IReadOnlyList<BookParagraph> paragraphs,
+        string title,
+        CancellationToken cancellationToken = default)
     {
         const int targetCharacters = 40_000;
         var chapters = new List<BookChapter>();
@@ -152,6 +167,7 @@ public static partial class BookLoader
         var chapterIndex = 0;
         foreach (var paragraph in paragraphs)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             current.Add(paragraph with { Id = $"ch-{chapterIndex}-{current.Count}" });
             length += paragraph.PlainText.Length;
             if (length >= targetCharacters)

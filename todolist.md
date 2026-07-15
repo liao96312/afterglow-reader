@@ -128,7 +128,7 @@ BookProgress（以规范化文件完整路径为键）
 - [ ] 用集成样本验证点击/脚本触发的 `http(s)://`、`file://`、下载和新窗口均被拒绝，内部阅读页仍可正常加载。
 - [ ] 验证 F8：长按不连发、隐藏/恢复不改变前台窗口，且不出现在任务栏、Alt+Tab 和任务视图；退出时正确释放热键。
 - [ ] 明确首发范围为 Windows 11 x64；Windows 10 暂列尽力兼容，不纳入 MVP 阻塞验收。
-- [ ] 添加最小 `.gitignore`（`bin/`、`obj/`、`artifacts/`、WebView2 用户数据），避免构建产物进入版本库。
+- [x] 添加最小 `.gitignore`（`bin/`、`obj/`、`artifacts/`、WebView2 用户数据），避免构建产物进入版本库。
 
 **P0 当前状态：**阅读页实际显示已通过 `readerReady` 冒烟；F8 不抢焦点仍是窗口设置和发布前的阻塞验收。CompositionControl、单 Alt、60/120Hz 长测分别移到增强项/P6，不阻塞解析与阅读页主线。
 
@@ -168,7 +168,7 @@ BookProgress（以规范化文件完整路径为键）
 - [x] TXT 支持 BOM、UTF-8、GB18030；无法识别时先按 GB18030 回退。
 - [x] TXT 按常见“第…章/节/卷”行拆章；无章节文件按段落边界切成约 30k～50k 字的虚拟章节。
 - [x] TXT/EPUB 当前采用异步全量读取，拆章放在后台任务；MVP 暂接受整本内容驻留内存，正文渲染仍必须窗口化。
-- [ ] 切书时使用 latest-open-wins 的 `CancellationTokenSource`；在拆章/清洗循环中定期检查取消，避免较大文件解析完成后覆盖新书。
+- [x] 切书时使用 latest-open-wins 的 `CancellationTokenSource`；在拆章/清洗循环中定期检查取消，避免较大文件解析完成后覆盖新书；已补取消测试。
 - [x] EPUB 使用 spine 顺序读取章节；标题优先取正文标题，缺失时生成名称。
 - [ ] 收敛 EPUB/MOBI 内容安全：当前正则清洗后仍会把部分原始标签交给 `innerHTML`，不能视为可靠白名单。MVP 改为纯文本或仅由程序构造固定 `p/h1-h6/br/em/strong` 标签。
 - [ ] 用损坏、嵌套标签、脚本、事件属性、`javascript:`/外链资源样本验证结果；确认无法执行脚本或离开内部阅读页。
@@ -229,7 +229,7 @@ BookProgress（以规范化文件完整路径为键）
 
 ### P6：测试和性能验收
 
-- [x] 已有 7 项测试：UTF-8 TXT 拆章/ID、GB18030 回退、最小 EPUB spine、未知扩展名、损坏 MOBI、设置/进度/窗口边界 JSON 往返与范围收敛、ReaderSession 三章窗口。
+- [x] 已有 8 项测试：UTF-8 TXT 拆章/ID、GB18030 回退、最小 EPUB spine、未知扩展名、损坏 MOBI、取消解析、设置/进度/窗口边界 JSON 往返与范围收敛、ReaderSession 三章窗口。
 - [ ] 补齐解析测试：无章节长 TXT 分块、空文件、无权限、脚本 EPUB、EPUB3、合法 MOBI7/KF8、DRM MOBI，以及三种格式重复打开后的段落 ID 稳定性。
 - [ ] 补齐持久化测试：损坏 JSON 备份、原子替换失败恢复、多本书记录和路径大小写归一化。
 - [ ] 增加最小阅读页集成冒烟测试：内部 reader shell 能加载、外部导航被拒绝、打开一本 TXT 后 DOM 只保留规定章节数。
@@ -276,7 +276,7 @@ BookProgress（以规范化文件完整路径为键）
 - 工程、依赖、标准 WebView2 Runtime 和 `win-x64` 自包含进程能够启动。
 - 无边框窗口、右下角定位、F8 注册代码、托盘菜单和鼠标穿透代码能够编译运行。
 - TXT/EPUB 解析基础路径、MOBI 适配入口、统一章节模型和 HTML 清洗原型已实现；清洗尚未达到安全验收标准。
-- `settings.json` / `progress.json` 原子写入骨架已实现；现有 7 项 xUnit 测试通过。
+- `settings.json` / `progress.json` 原子写入骨架已实现；现有 8 项 xUnit 测试通过。
 
 ### 不能算完成
 

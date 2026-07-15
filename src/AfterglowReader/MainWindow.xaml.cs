@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Shell;
 using System.Text.Json;
 using AfterglowReader.Books;
 using AfterglowReader.Persistence;
@@ -29,6 +30,7 @@ public partial class MainWindow : Window
     private readonly TaskCompletionSource<bool> _readerReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private CancellationTokenSource? _progressSaveCts;
+    private CancellationTokenSource? _bookLoadCts;
     private ReaderSession? _session;
     private string? _currentBookPath;
     private string? _selectedChapterId;
@@ -46,7 +48,7 @@ public partial class MainWindow : Window
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         var hwnd = new WindowInteropHelper(this).Handle;
-        PlatformNativeWindow.ApplyToolWindow(hwnd);
+        EnsureDpiSafeChrome();
         _hwndSource = HwndSource.FromHwnd(hwnd);
         _hwndSource.AddHook(WindowMessageHook);
         _bossHotKeyRegistered = PlatformNativeWindow.RegisterBossHotKey(hwnd, BossHotKeyId);
@@ -58,6 +60,10 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        if (WindowState == WindowState.Maximized)
+        {
+            WindowState = WindowState.Normal;
+        }
         RestoreWindowSettings((await _stateStore.LoadSettingsAsync()).Normalize());
         _progress.AddRange(await _stateStore.LoadProgressAsync());
         _tray = new TrayService(
@@ -123,6 +129,19 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
 
+    private void EnsureDpiSafeChrome()
+    {
+        var chrome = new WindowChrome
+        {
+            CaptionHeight = 44,
+            CornerRadius = default,
+            GlassFrameThickness = new Thickness(0),
+            ResizeBorderThickness = new Thickness(8),
+            UseAeroCaptionButtons = false
+        };
+        WindowChrome.SetWindowChrome(this, chrome);
+    }
+
     private void PositionBottomRight()
     {
         var workArea = SystemParameters.WorkArea;
@@ -182,6 +201,13 @@ public partial class MainWindow : Window
         }
     }
 
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
+
     private void HideImmediately()
     {
         _isHidden = true;
@@ -220,11 +246,15 @@ public partial class MainWindow : Window
         };
         if (dialog.ShowDialog() == true)
         {
+            var loadCts = new CancellationTokenSource();
+            var previousLoadCts = Interlocked.Exchange(ref _bookLoadCts, loadCts);
+            previousLoadCts?.Cancel();
             try
             {
                 await SaveProgressNowAsync();
                 StatusText.Text = $"正在读取 {System.IO.Path.GetFileName(dialog.FileName)}…";
-                var book = await BookLoader.LoadAsync(dialog.FileName);
+                var book = await BookLoader.LoadAsync(dialog.FileName, loadCts.Token);
+                loadCts.Token.ThrowIfCancellationRequested();
                 _currentBookPath = dialog.FileName;
                 _session = new ReaderSession(book);
                 var saved = _progress.FirstOrDefault(item => string.Equals(item.Path, dialog.FileName, StringComparison.OrdinalIgnoreCase));
@@ -243,9 +273,22 @@ public partial class MainWindow : Window
                 await RenderChapterIndexAsync(book);
                 await RenderWindowAsync(_session.CurrentWindow, _lastAnchorId, _lastAnchorOffset, _selectedChapterId);
             }
+            catch (OperationCanceledException) when (loadCts.IsCancellationRequested)
+            {
+                // A newer open request superseded this parse.
+            }
             catch (BookReaderException exception)
             {
                 StatusText.Text = exception.Message;
+            }
+            finally
+            {
+                if (ReferenceEquals(_bookLoadCts, loadCts))
+                {
+                    _bookLoadCts = null;
+                }
+
+                loadCts.Dispose();
             }
         }
     }
@@ -279,6 +322,7 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs e)
     {
+        _bookLoadCts?.Cancel();
         SaveProgressNowAsync().GetAwaiter().GetResult();
         _stateStore.SaveSettingsAsync(new ReaderSettings(
             Opacity: Opacity,
@@ -302,6 +346,7 @@ public partial class MainWindow : Window
         _statusHideTimer?.Stop();
         ReaderView.Dispose();
         _progressSaveCts?.Dispose();
+        _bookLoadCts?.Dispose();
         _renderGate.Dispose();
     }
 

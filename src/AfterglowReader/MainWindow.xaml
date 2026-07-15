@@ -3,10 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:local="clr-namespace:AfterglowReader"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         mc:Ignorable="d"
-        Title="余光阅读器 · P0 WebView2 验证"
+        Title="余光阅读器"
         Height="520"
         Width="720"
         MinHeight="240"
@@ -15,25 +16,79 @@
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
         WindowStyle="None"
-        ShowActivated="False"
-        ShowInTaskbar="False"
-        Topmost="True"
-        Opacity="0.94"
+        ResizeMode="CanResize"
+        ShowActivated="True"
+        ShowInTaskbar="True"
+        Topmost="False"
+        Opacity="1"
         WindowStartupLocation="CenterScreen">
-    <Grid Background="#F7F3EA">
-        <wv2:WebView2 x:Name="ReaderView" />
-        <Border x:Name="StatusPanel"
-                HorizontalAlignment="Left"
-                VerticalAlignment="Top"
-                Margin="30,30,0,0"
-                Padding="10,6"
-                Background="#DD2A2521"
-                CornerRadius="5"
-                IsHitTestVisible="False">
-            <TextBlock x:Name="StatusText"
-                       Foreground="White"
-                       FontSize="12"
-                       Text="正在初始化 WebView2…" />
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="8"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+    <Grid Background="#F7F3EA" ClipToBounds="True">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Background="#F2EBDD"
+                BorderBrush="#E1D3C0"
+                BorderThickness="0,0,0,1"
+                shell:WindowChrome.IsHitTestVisibleInChrome="True">
+            <Grid Margin="12,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center"
+                           Foreground="#2A2521"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Text="余光阅读器" />
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button x:Name="MinimizeButton"
+                            Width="40"
+                            Height="28"
+                            Margin="0,0,6,0"
+                            Click="MinimizeButton_Click"
+                            Content="—" />
+                    <Button x:Name="MaximizeButton"
+                            Width="40"
+                            Height="28"
+                            Margin="0,0,6,0"
+                            Click="MaximizeButton_Click"
+                            Content="□" />
+                    <Button x:Name="CloseButton"
+                            Width="40"
+                            Height="28"
+                            Click="CloseButton_Click"
+                            Content="×" />
+                </StackPanel>
+            </Grid>
         </Border>
+
+        <Grid Grid.Row="1">
+            <wv2:WebView2 x:Name="ReaderView" />
+            <Border x:Name="StatusPanel"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Top"
+                    Margin="30,14,0,0"
+                    Padding="10,6"
+                    Background="#DD2A2521"
+                    CornerRadius="5"
+                    IsHitTestVisible="False">
+                <TextBlock x:Name="StatusText"
+                           Foreground="White"
+                           FontSize="12"
+                           Text="正在初始化 WebView2…" />
+            </Border>
+        </Grid>
     </Grid>
 </Window>
