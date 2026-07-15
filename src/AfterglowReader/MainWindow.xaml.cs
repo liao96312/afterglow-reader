@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Text.Json;
 using AfterglowReader.Books;
 using AfterglowReader.Persistence;
@@ -49,7 +51,6 @@ public partial class MainWindow : Window
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         var hwnd = new WindowInteropHelper(this).Handle;
-        PlatformNativeWindow.ApplyToolWindow(hwnd);
         _hwndSource = HwndSource.FromHwnd(hwnd);
         _hwndSource.AddHook(WindowMessageHook);
         _bossHotKeyRegistered = PlatformNativeWindow.RegisterBossHotKey(hwnd, BossHotKeyId);
@@ -124,15 +125,44 @@ public partial class MainWindow : Window
             ToggleAutoScroll();
             handled = true;
         }
-        else if (message == PlatformNativeWindow.WmNcHitTest && _clickThrough)
+        else if (message == PlatformNativeWindow.WmNcHitTest)
         {
-            handled = true;
-            return new IntPtr(PlatformNativeWindow.HtTransparent);
+            if (_clickThrough)
+            {
+                handled = true;
+                return new IntPtr(PlatformNativeWindow.HtTransparent);
+            }
+
+            const int htLeft = 10;
+            const int htRight = 11;
+            const int htTop = 12;
+            const int htTopLeft = 13;
+            const int htTopRight = 14;
+            const int htBottom = 15;
+            const int htBottomLeft = 16;
+            const int htBottomRight = 17;
+
+            var point = GetScreenPoint(lParam);
+            var thickness = GetResizeBorderThickness();
+            var border = GetResizeBorderPixels(thickness);
+            var rect = new Rect(Left, Top, ActualWidth > 0 ? ActualWidth : Width, ActualHeight > 0 ? ActualHeight : Height);
+            var left = point.X >= rect.Left && point.X < rect.Left + border;
+            var right = point.X <= rect.Right && point.X > rect.Right - border;
+            var top = point.Y >= rect.Top && point.Y < rect.Top + border;
+            var bottom = point.Y <= rect.Bottom && point.Y > rect.Bottom - border;
+
+            if (top && left) { handled = true; return new IntPtr(htTopLeft); }
+            if (top && right) { handled = true; return new IntPtr(htTopRight); }
+            if (bottom && left) { handled = true; return new IntPtr(htBottomLeft); }
+            if (bottom && right) { handled = true; return new IntPtr(htBottomRight); }
+            if (left) { handled = true; return new IntPtr(htLeft); }
+            if (right) { handled = true; return new IntPtr(htRight); }
+            if (top) { handled = true; return new IntPtr(htTop); }
+            if (bottom) { handled = true; return new IntPtr(htBottom); }
         }
 
         return IntPtr.Zero;
     }
-
 
     private void PositionBottomRight()
     {
@@ -211,6 +241,20 @@ public partial class MainWindow : Window
         var hwnd = new WindowInteropHelper(this).Handle;
         PlatformNativeWindow.ShowWithoutActivation(hwnd, (int)Left, (int)Top, (int)Width, (int)Height);
     }
+
+    private System.Windows.Point GetScreenPoint(IntPtr lParam)
+    {
+        var value = lParam.ToInt64();
+        var x = unchecked((short)(value & 0xFFFF));
+        var y = unchecked((short)((value >> 16) & 0xFFFF));
+        return new System.Windows.Point(x, y);
+    }
+
+    private double GetResizeBorderThickness()
+        => 8 * VisualTreeHelper.GetDpi(this).DpiScaleX;
+
+    private static int GetResizeBorderPixels(double thickness)
+        => Math.Max(6, (int)Math.Round(thickness));
 
     private void ToggleClickThrough()
     {

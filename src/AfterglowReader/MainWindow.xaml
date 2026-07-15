@@ -24,135 +24,26 @@
         Opacity="1"
         WindowStartupLocation="CenterScreen">
     <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="44"
+        <shell:WindowChrome CaptionHeight="0"
                             CornerRadius="0"
                             GlassFrameThickness="0"
                             ResizeBorderThickness="8"
                             UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
-    <Window.Resources>
-        <Style x:Key="TitleBarButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="36" />
-            <Setter Property="Height" Value="24" />
-            <Setter Property="Margin" Value="0,0,6,0" />
-            <Setter Property="Padding" Value="0" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="Foreground" Value="#6B5D50" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="6">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#E6D8C5" />
-                                <Setter Property="Foreground" Value="#2A2521" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Chrome" Property="Background" Value="#D8C5AE" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
-
     <Grid Background="#F7F3EA" ClipToBounds="True">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="40" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <Border Grid.Row="0"
-                Background="#F7F3EA"
-                BorderBrush="#E8DECF"
-                BorderThickness="0,0,0,1"
-                shell:WindowChrome.IsHitTestVisibleInChrome="True">
-            <Grid Margin="10,0,8,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Ellipse Width="8" Height="8" Fill="#C9B08F" Margin="0,0,8,0" />
-                    <TextBlock VerticalAlignment="Center"
-                               Foreground="#2A2521"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               Text="余光阅读器" />
-                </StackPanel>
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            VerticalAlignment="Center">
-                    <Button x:Name="MinimizeButton"
-                            Style="{StaticResource TitleBarButtonStyle}"
-                            Click="MinimizeButton_Click"
-                            Content="—" />
-                    <Button x:Name="MaximizeButton"
-                            Style="{StaticResource TitleBarButtonStyle}"
-                            Click="MaximizeButton_Click"
-                            Content="□" />
-                    <Button x:Name="CloseButton"
-                            Width="36"
-                            Height="24"
-                            Padding="0"
-                            Margin="0"
-                            Background="Transparent"
-                            BorderBrush="Transparent"
-                            Foreground="#6B5D50"
-                            FontSize="15"
-                            FontWeight="SemiBold"
-                            Cursor="Hand"
-                            Click="CloseButton_Click"
-                            Content="×">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="Chrome"
-                                        Background="{TemplateBinding Background}"
-                                        CornerRadius="6">
-                                    <ContentPresenter HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center" />
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True">
-                                        <Setter TargetName="Chrome" Property="Background" Value="#D96B6B" />
-                                        <Setter Property="Foreground" Value="White" />
-                                    </Trigger>
-                                    <Trigger Property="IsPressed" Value="True">
-                                        <Setter TargetName="Chrome" Property="Background" Value="#C85353" />
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                    </Button>
-                </StackPanel>
-            </Grid>
+        <wv2:WebView2 x:Name="ReaderView" />
+        <Border x:Name="StatusPanel"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Margin="24,12,0,0"
+                Padding="10,6"
+                Background="#DD2A2521"
+                CornerRadius="5"
+                IsHitTestVisible="False">
+            <TextBlock x:Name="StatusText"
+                       Foreground="White"
+                       FontSize="12"
+                       Text="正在初始化 WebView2…" />
         </Border>
-
-        <Grid Grid.Row="1">
-            <wv2:WebView2 x:Name="ReaderView" />
-            <Border x:Name="StatusPanel"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Top"
-                    Margin="24,12,0,0"
-                    Padding="10,6"
-                    Background="#DD2A2521"
-                    CornerRadius="5"
-                    IsHitTestVisible="False">
-                <TextBlock x:Name="StatusText"
-                           Foreground="White"
-                           FontSize="12"
-                           Text="正在初始化 WebView2…" />
-            </Border>
-        </Grid>
     </Grid>
 </Window>
