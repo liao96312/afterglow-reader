@@ -3,6 +3,7 @@
   const chapters = document.getElementById('chapters');
   const openFile = document.getElementById('open-file');
   const directoryToggle = document.getElementById('directory-toggle');
+  const autoScrollButton = document.getElementById('auto-scroll');
   const toast = document.getElementById('toast');
   let raf = 0;
   let targetScroll = 0;
@@ -13,6 +14,7 @@
   let progressTimer = 0;
   let dragState = null;
   let toastTimer = 0;
+  let toolbarHideTimer = 0;
 
   const showToast = (message) => {
     if (!toast) return;
@@ -22,8 +24,27 @@
     toastTimer = window.setTimeout(() => { toast.hidden = true; }, 3000);
   };
 
-  openFile.onclick = () => window.chrome?.webview?.postMessage(JSON.stringify({ type: 'openFile' }));
-  directoryToggle.onclick = () => chapters.classList.toggle('hidden');
+  const keepToolbarVisible = () => {
+    document.body.classList.remove('toolbar-hidden');
+    window.clearTimeout(toolbarHideTimer);
+    toolbarHideTimer = window.setTimeout(() => {
+      if (!chapters.classList.contains('hidden')) return;
+      document.body.classList.add('toolbar-hidden');
+    }, 4000);
+  };
+
+  openFile.onclick = () => {
+    keepToolbarVisible();
+    window.chrome?.webview?.postMessage(JSON.stringify({ type: 'openFile' }));
+  };
+  directoryToggle.onclick = () => {
+    chapters.classList.toggle('hidden');
+    keepToolbarVisible();
+  };
+  autoScrollButton.onclick = () => {
+    window.toggleAutoScroll?.();
+    keepToolbarVisible();
+  };
 
   window.setChapterIndex = (items) => {
     chapters.replaceChildren();
@@ -145,6 +166,8 @@
   window.toggleAutoScroll = () => {
     autoScroll = !autoScroll;
     targetScroll = scrollY;
+    autoScrollButton.classList.toggle('active', autoScroll);
+    autoScrollButton.textContent = autoScroll ? '暂停滚动' : '自动滚动';
     if (autoScroll) startAnimation();
   };
 
@@ -194,6 +217,7 @@
 
   addEventListener('pointerup', finishDrag);
   addEventListener('pointercancel', finishDrag);
+  addEventListener('pointermove', keepToolbarVisible, { passive: true });
 
   addEventListener('keydown', (event) => {
     if (!autoScroll || (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName))) return;
@@ -209,5 +233,6 @@
     if (scrollY < 500) requestWindow(-1);
   }, { passive: true });
 
+  keepToolbarVisible();
   window.chrome?.webview?.postMessage(JSON.stringify({ type: 'readerReady' }));
 })();

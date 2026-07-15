@@ -72,6 +72,7 @@ public partial class MainWindow : Window
             var environment = await CoreWebView2Environment.CreateAsync();
             await ReaderView.EnsureCoreWebView2Async(environment);
             ReaderView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 247, 243, 234);
+            ReaderView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
             ReaderView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             ReaderView.CoreWebView2.Settings.AreDevToolsEnabled = false;
             ReaderView.CoreWebView2.Settings.IsStatusBarEnabled = false;
