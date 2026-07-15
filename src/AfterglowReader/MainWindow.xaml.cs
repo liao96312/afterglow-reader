@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Interop;
-using System.Windows.Shell;
 using System.Text.Json;
 using AfterglowReader.Books;
 using AfterglowReader.Persistence;
@@ -18,12 +17,12 @@ public partial class MainWindow : Window
 {
     private const int BossHotKeyId = 1001;
     private const int AutoScrollHotKeyId = 1002;
-    private const int AltBossHotKeyId = 1003;
+    private const int CtrlTabBossHotKeyId = 1003;
     private HwndSource? _hwndSource;
     private TrayService? _tray;
     private bool _bossHotKeyRegistered;
     private bool _autoScrollHotKeyRegistered;
-    private bool _altBossHotKeyRegistered;
+    private bool _ctrlTabBossHotKeyRegistered;
     private bool _isHidden;
     private bool _clickThrough;
     private System.Windows.Threading.DispatcherTimer? _statusHideTimer;
@@ -50,24 +49,20 @@ public partial class MainWindow : Window
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
         var hwnd = new WindowInteropHelper(this).Handle;
-        EnsureDpiSafeChrome();
+        PlatformNativeWindow.ApplyToolWindow(hwnd);
         _hwndSource = HwndSource.FromHwnd(hwnd);
         _hwndSource.AddHook(WindowMessageHook);
         _bossHotKeyRegistered = PlatformNativeWindow.RegisterBossHotKey(hwnd, BossHotKeyId);
         _autoScrollHotKeyRegistered = PlatformNativeWindow.RegisterAutoScrollHotKey(hwnd, AutoScrollHotKeyId);
-        _altBossHotKeyRegistered = PlatformNativeWindow.RegisterAltBossHotKey(hwnd, AltBossHotKeyId);
-        App.LogDiagnostic("HotKey", $"Alt={_altBossHotKeyRegistered}; F8={_bossHotKeyRegistered}; F7={_autoScrollHotKeyRegistered}");
-        StatusText.Text = _bossHotKeyRegistered || _altBossHotKeyRegistered
+        _ctrlTabBossHotKeyRegistered = PlatformNativeWindow.RegisterCtrlTabBossHotKey(hwnd, CtrlTabBossHotKeyId);
+        App.LogDiagnostic("HotKey", $"CtrlTab={_ctrlTabBossHotKeyRegistered}; F8={_bossHotKeyRegistered}; F7={_autoScrollHotKeyRegistered}");
+        StatusText.Text = _bossHotKeyRegistered || _ctrlTabBossHotKeyRegistered
             ? "F8 隐藏/恢复 · 正在初始化 WebView2…"
             : "F8 注册失败 · 正在初始化 WebView2…";
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        if (WindowState == WindowState.Maximized)
-        {
-            WindowState = WindowState.Normal;
-        }
         RestoreWindowSettings((await _stateStore.LoadSettingsAsync()).Normalize());
         _progress.AddRange(await _stateStore.LoadProgressAsync());
         _tray = new TrayService(
@@ -119,7 +114,7 @@ public partial class MainWindow : Window
             ToggleHidden();
             handled = true;
         }
-        else if (message == PlatformNativeWindow.WmHotKey && wParam.ToInt32() == AltBossHotKeyId)
+        else if (message == PlatformNativeWindow.WmHotKey && wParam.ToInt32() == CtrlTabBossHotKeyId)
         {
             ToggleHidden();
             handled = true;
@@ -138,18 +133,6 @@ public partial class MainWindow : Window
         return IntPtr.Zero;
     }
 
-    private void EnsureDpiSafeChrome()
-    {
-        var chrome = new WindowChrome
-        {
-            CaptionHeight = 44,
-            CornerRadius = default,
-            GlassFrameThickness = new Thickness(0),
-            ResizeBorderThickness = new Thickness(8),
-            UseAeroCaptionButtons = false
-        };
-        WindowChrome.SetWindowChrome(this, chrome);
-    }
 
     private void PositionBottomRight()
     {
@@ -210,12 +193,6 @@ public partial class MainWindow : Window
         }
     }
 
-    private void MinimizeButton_Click(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
-
-    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
-        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-
-    private void CloseButton_Click(object sender, RoutedEventArgs e) => Close();
 
     private void HideImmediately()
     {
@@ -349,9 +326,9 @@ public partial class MainWindow : Window
         {
             PlatformNativeWindow.UnregisterBossHotKey(hwnd, AutoScrollHotKeyId);
         }
-        if (_altBossHotKeyRegistered)
+        if (_ctrlTabBossHotKeyRegistered)
         {
-            PlatformNativeWindow.UnregisterBossHotKey(hwnd, AltBossHotKeyId);
+            PlatformNativeWindow.UnregisterBossHotKey(hwnd, CtrlTabBossHotKeyId);
         }
 
         _hwndSource?.RemoveHook(WindowMessageHook);
