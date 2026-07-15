@@ -33,6 +33,7 @@ public sealed record BookProgress(string Path, string? ParagraphId, double Parag
 
 public sealed class ReaderStateStore
 {
+    private const int CurrentSchemaVersion = 2;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly string _root;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
@@ -43,16 +44,16 @@ public sealed class ReaderStateStore
     }
 
     public Task SaveSettingsAsync(ReaderSettings settings, CancellationToken cancellationToken = default)
-        => WriteJsonAtomicAsync("settings.json", settings.Normalize(), cancellationToken);
+        => WriteJsonAtomicAsync("settings.json", new StateEnvelope<ReaderSettings>(CurrentSchemaVersion, settings.Normalize()), cancellationToken);
 
     public Task SaveProgressAsync(IEnumerable<BookProgress> progress, CancellationToken cancellationToken = default)
-        => WriteJsonAtomicAsync("progress.json", progress.ToArray(), cancellationToken);
+        => WriteJsonAtomicAsync("progress.json", new StateEnvelope<BookProgress[]>(CurrentSchemaVersion, progress.ToArray()), cancellationToken);
 
     public Task<ReaderSettings> LoadSettingsAsync(CancellationToken cancellationToken = default)
-        => ReadJsonAsync("settings.json", new ReaderSettings(), cancellationToken);
+        => ReadStateJsonAsync("settings.json", new ReaderSettings(), cancellationToken);
 
     public Task<IReadOnlyList<BookProgress>> LoadProgressAsync(CancellationToken cancellationToken = default)
-        => ReadJsonAsync<IReadOnlyList<BookProgress>>("progress.json", Array.Empty<BookProgress>(), cancellationToken);
+        => ReadStateJsonAsync<IReadOnlyList<BookProgress>>("progress.json", Array.Empty<BookProgress>(), cancellationToken);
 
     private async Task WriteJsonAtomicAsync<T>(string fileName, T value, CancellationToken cancellationToken)
     {
@@ -92,7 +93,7 @@ public sealed class ReaderStateStore
         }
     }
 
-    private async Task<T> ReadJsonAsync<T>(string fileName, T fallback, CancellationToken cancellationToken)
+    private async Task<T> ReadStateJsonAsync<T>(string fileName, T fallback, CancellationToken cancellationToken)
     {
         var path = Path.Combine(_root, fileName);
         if (!File.Exists(path))
@@ -103,8 +104,27 @@ public sealed class ReaderStateStore
         try
         {
             await using var stream = File.OpenRead(path);
-            var value = await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
-            return value ?? fallback;
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
+            var root = document.RootElement;
+
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("schemaVersion", out var versionElement))
+            {
+                // The original MVP shape is schema v1 and stores the value directly.
+                return JsonSerializer.Deserialize<T>(root.GetRawText(), JsonOptions) ?? fallback;
+            }
+
+            if (!versionElement.TryGetInt32(out var version) || version is < 1 or > CurrentSchemaVersion)
+            {
+                System.Diagnostics.Trace.TraceWarning($"AfterglowReader ignored unsupported state schema; file={fileName}; version={versionElement.GetRawText()}");
+                return fallback;
+            }
+
+            if (!root.TryGetProperty("data", out var data))
+            {
+                throw new JsonException("State envelope is missing data.");
+            }
+
+            return JsonSerializer.Deserialize<T>(data.GetRawText(), JsonOptions) ?? fallback;
         }
         catch (JsonException)
         {
@@ -113,4 +133,6 @@ public sealed class ReaderStateStore
             return fallback;
         }
     }
+
+    private sealed record StateEnvelope<T>(int SchemaVersion, T Data);
 }

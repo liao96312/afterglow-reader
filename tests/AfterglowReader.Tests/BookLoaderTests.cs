@@ -1,6 +1,7 @@
 using System.IO;
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json;
 using AfterglowReader.Books;
 using AfterglowReader.Persistence;
 using AfterglowReader.Reader;
@@ -186,6 +187,60 @@ public sealed class BookLoaderTests
             var progress = await store.LoadProgressAsync();
             Assert.Single(progress);
             Assert.DoesNotContain(Directory.EnumerateFiles(root), path => path.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LoadsLegacyStateAndWritesVersionedEnvelope()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-schema-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "settings.json"), "{\"fontSize\":28,\"lastBookPath\":\"C:\\\\Books\\\\legacy.txt\"}");
+            await File.WriteAllTextAsync(Path.Combine(root, "progress.json"), "[{\"path\":\"C:\\\\Books\\\\legacy.txt\",\"paragraphId\":\"ch-0-3\",\"paragraphOffset\":8,\"updatedAt\":\"2026-07-15T00:00:00+00:00\"}]");
+
+            var store = new ReaderStateStore(root);
+            var settings = await store.LoadSettingsAsync();
+            var progress = await store.LoadProgressAsync();
+            Assert.Equal(28, settings.FontSize);
+            Assert.Equal(@"C:\Books\legacy.txt", settings.LastBookPath);
+            Assert.Equal("ch-0-3", Assert.Single(progress).ParagraphId);
+
+            await store.SaveSettingsAsync(settings);
+            await store.SaveProgressAsync(progress);
+            using var settingsDocument = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "settings.json")));
+            using var progressDocument = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "progress.json")));
+            Assert.Equal(2, settingsDocument.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.Equal(2, progressDocument.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.True(settingsDocument.RootElement.TryGetProperty("data", out _));
+            Assert.True(progressDocument.RootElement.TryGetProperty("data", out _));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task LeavesUnknownFutureSchemaUntouchedAndFallsBack()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-future-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "settings.json");
+        const string futureState = "{\"schemaVersion\":99,\"data\":{\"fontSize\":36}}";
+        try
+        {
+            await File.WriteAllTextAsync(path, futureState);
+
+            var settings = await new ReaderStateStore(root).LoadSettingsAsync();
+
+            Assert.Equal(20, settings.FontSize);
+            Assert.Equal(futureState, await File.ReadAllTextAsync(path));
         }
         finally
         {
