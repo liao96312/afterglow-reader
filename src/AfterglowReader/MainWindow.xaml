@@ -12,6 +12,8 @@
         MinHeight="240"
         MinWidth="360"
         Background="#F7F3EA"
+        SnapsToDevicePixels="True"
+        UseLayoutRounding="True"
         WindowStyle="None"
         ShowActivated="False"
         ShowInTaskbar="False"

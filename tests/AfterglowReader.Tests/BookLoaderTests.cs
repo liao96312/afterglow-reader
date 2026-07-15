@@ -126,12 +126,21 @@ public sealed class BookLoaderTests
         try
         {
             var store = new ReaderStateStore(root);
-            await store.SaveSettingsAsync(new ReaderSettings(FontSize: 100));
+            await store.SaveSettingsAsync(new ReaderSettings(
+                FontSize: 100,
+                WindowLeft: -120,
+                WindowTop: 48,
+                WindowWidth: 860,
+                WindowHeight: 460));
             await store.SaveProgressAsync([new BookProgress("book.txt", "ch-0-1", 12.5, DateTimeOffset.UtcNow)]);
 
             var settings = await store.LoadSettingsAsync();
             var progress = await store.LoadProgressAsync();
             Assert.Equal(64, settings.FontSize);
+            Assert.Equal(-120, settings.WindowLeft);
+            Assert.Equal(48, settings.WindowTop);
+            Assert.Equal(860, settings.WindowWidth);
+            Assert.Equal(460, settings.WindowHeight);
             Assert.Single(progress);
             Assert.Equal("ch-0-1", progress[0].ParagraphId);
         }

@@ -58,7 +58,7 @@ public partial class MainWindow : Window
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        PositionBottomRight();
+        RestoreWindowSettings((await _stateStore.LoadSettingsAsync()).Normalize());
         _progress.AddRange(await _stateStore.LoadProgressAsync());
         _tray = new TrayService(
             ShowWithoutActivation,
@@ -127,6 +127,46 @@ public partial class MainWindow : Window
         var workArea = SystemParameters.WorkArea;
         Left = Math.Max(workArea.Left + 12, workArea.Right - Width - 24);
         Top = Math.Max(workArea.Top + 12, workArea.Bottom - Height - 24);
+    }
+
+    private void RestoreWindowSettings(ReaderSettings settings)
+    {
+        Width = settings.WindowWidth ?? Width;
+        Height = settings.WindowHeight ?? Height;
+        Opacity = settings.Opacity;
+
+        if (settings.WindowLeft is double left
+            && settings.WindowTop is double top
+            && IsFiniteWindowBounds(left, top, Width, Height)
+            && IsVisibleOnAnyWorkArea(left, top, Width, Height))
+        {
+            Left = left;
+            Top = top;
+            return;
+        }
+
+        PositionBottomRight();
+    }
+
+    private static bool IsFiniteWindowBounds(double left, double top, double width, double height)
+        => double.IsFinite(left)
+            && double.IsFinite(top)
+            && double.IsFinite(width)
+            && double.IsFinite(height)
+            && width >= 360
+            && height >= 240;
+
+    private static bool IsVisibleOnAnyWorkArea(double left, double top, double width, double height)
+    {
+        var right = left + width;
+        var bottom = top + height;
+        return System.Windows.Forms.Screen.AllScreens.Any(screen =>
+        {
+            var workArea = screen.WorkingArea;
+            var visibleWidth = Math.Min(right, workArea.Right) - Math.Max(left, workArea.Left);
+            var visibleHeight = Math.Min(bottom, workArea.Bottom) - Math.Max(top, workArea.Top);
+            return visibleWidth >= 80 && visibleHeight >= 40;
+        });
     }
 
     private void ToggleHidden()
@@ -239,7 +279,12 @@ public partial class MainWindow : Window
     private void OnClosed(object? sender, EventArgs e)
     {
         SaveProgressNowAsync().GetAwaiter().GetResult();
-        _stateStore.SaveSettingsAsync(new ReaderSettings(Opacity: Opacity)).GetAwaiter().GetResult();
+        _stateStore.SaveSettingsAsync(new ReaderSettings(
+            Opacity: Opacity,
+            WindowLeft: double.IsFinite(Left) ? Left : null,
+            WindowTop: double.IsFinite(Top) ? Top : null,
+            WindowWidth: double.IsFinite(Width) ? Width : null,
+            WindowHeight: double.IsFinite(Height) ? Height : null)).GetAwaiter().GetResult();
 
         var hwnd = new WindowInteropHelper(this).Handle;
         if (_bossHotKeyRegistered)

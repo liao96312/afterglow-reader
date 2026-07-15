@@ -9,7 +9,11 @@ public sealed record ReaderSettings(
     double FontSize = 20,
     double LineHeight = 1.9,
     double Opacity = 0.94,
-    double ScrollPixelsPerSecond = 220)
+    double ScrollPixelsPerSecond = 220,
+    double? WindowLeft = null,
+    double? WindowTop = null,
+    double? WindowWidth = null,
+    double? WindowHeight = null)
 {
     public ReaderSettings Normalize()
         => this with
@@ -17,7 +21,9 @@ public sealed record ReaderSettings(
             FontSize = Math.Clamp(FontSize, 12, 64),
             LineHeight = Math.Clamp(LineHeight, 1.1, 3.5),
             Opacity = Math.Clamp(Opacity, 0.35, 1),
-            ScrollPixelsPerSecond = Math.Clamp(ScrollPixelsPerSecond, 20, 2_000)
+            ScrollPixelsPerSecond = Math.Clamp(ScrollPixelsPerSecond, 20, 2_000),
+            WindowWidth = WindowWidth is { } width ? Math.Clamp(width, 360, 2_400) : null,
+            WindowHeight = WindowHeight is { } height ? Math.Clamp(height, 240, 2_000) : null
         };
 }
 
