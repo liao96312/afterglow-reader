@@ -18,10 +18,12 @@ public partial class MainWindow : Window
 {
     private const int BossHotKeyId = 1001;
     private const int AutoScrollHotKeyId = 1002;
+    private const int AltBossHotKeyId = 1003;
     private HwndSource? _hwndSource;
     private TrayService? _tray;
     private bool _bossHotKeyRegistered;
     private bool _autoScrollHotKeyRegistered;
+    private bool _altBossHotKeyRegistered;
     private bool _isHidden;
     private bool _clickThrough;
     private System.Windows.Threading.DispatcherTimer? _statusHideTimer;
@@ -53,7 +55,8 @@ public partial class MainWindow : Window
         _hwndSource.AddHook(WindowMessageHook);
         _bossHotKeyRegistered = PlatformNativeWindow.RegisterBossHotKey(hwnd, BossHotKeyId);
         _autoScrollHotKeyRegistered = PlatformNativeWindow.RegisterAutoScrollHotKey(hwnd, AutoScrollHotKeyId);
-        StatusText.Text = _bossHotKeyRegistered
+        _altBossHotKeyRegistered = PlatformNativeWindow.RegisterAltBossHotKey(hwnd, AltBossHotKeyId);
+        StatusText.Text = _bossHotKeyRegistered || _altBossHotKeyRegistered
             ? "F8 隐藏/恢复 · 正在初始化 WebView2…"
             : "F8 注册失败 · 正在初始化 WebView2…";
     }
@@ -111,6 +114,11 @@ public partial class MainWindow : Window
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (message == PlatformNativeWindow.WmHotKey && wParam.ToInt32() == BossHotKeyId)
+        {
+            ToggleHidden();
+            handled = true;
+        }
+        else if (message == PlatformNativeWindow.WmHotKey && wParam.ToInt32() == AltBossHotKeyId)
         {
             ToggleHidden();
             handled = true;
@@ -339,6 +347,10 @@ public partial class MainWindow : Window
         if (_autoScrollHotKeyRegistered)
         {
             PlatformNativeWindow.UnregisterBossHotKey(hwnd, AutoScrollHotKeyId);
+        }
+        if (_altBossHotKeyRegistered)
+        {
+            PlatformNativeWindow.UnregisterBossHotKey(hwnd, AltBossHotKeyId);
         }
 
         _hwndSource?.RemoveHook(WindowMessageHook);

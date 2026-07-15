@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Diagnostics;
 using Forms = System.Windows.Forms;
 
 namespace AfterglowReader.SystemIntegration;
@@ -24,12 +25,20 @@ internal sealed class TrayService : IDisposable
 
         _icon = new Forms.NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = LoadApplicationIcon(),
             Text = "余光阅读器",
             ContextMenuStrip = menu,
             Visible = true
         };
         _icon.DoubleClick += (_, _) => showReader();
+    }
+
+    private static Icon LoadApplicationIcon()
+    {
+        var executablePath = Process.GetCurrentProcess().MainModule?.FileName;
+        return executablePath is not null
+            ? Icon.ExtractAssociatedIcon(executablePath) ?? SystemIcons.Application
+            : SystemIcons.Application;
     }
 
     public void Dispose()

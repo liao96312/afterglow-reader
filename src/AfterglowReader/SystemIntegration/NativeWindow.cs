@@ -14,6 +14,7 @@ internal static class NativeWindow
     internal const uint ModNoRepeat = 0x4000;
     internal const uint VkF7 = 0x76;
     internal const uint VkF8 = 0x77;
+    internal const uint VkMenu = 0x12;
     internal const uint SwpNoActivate = 0x0010;
     internal const uint SwpShowWindow = 0x0040;
     internal const uint SwpNoSendChanging = 0x0400;
@@ -41,6 +42,9 @@ internal static class NativeWindow
 
     internal static bool RegisterBossHotKey(IntPtr hwnd, int id)
         => RegisterHotKey(hwnd, id, ModNoRepeat, VkF8);
+
+    internal static bool RegisterAltBossHotKey(IntPtr hwnd, int id)
+        => RegisterHotKey(hwnd, id, ModNoRepeat, VkMenu);
 
     internal static bool RegisterAutoScrollHotKey(IntPtr hwnd, int id)
         => RegisterHotKey(hwnd, id, ModNoRepeat, VkF7);
