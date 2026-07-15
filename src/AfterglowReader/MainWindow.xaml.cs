@@ -578,7 +578,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            App.LogDiagnostic("Shutdown", $"save failed: {exception}");
+            App.LogDiagnostic("Shutdown", $"save failed; path={_currentBookPath ?? "<none>"}; {exception}");
         }
         finally
         {
@@ -857,7 +857,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            App.LogDiagnostic("Progress", $"delayed save failed: {exception}");
+            App.LogDiagnostic("Progress", $"delayed save failed; path={_currentBookPath ?? "<none>"}; {exception}");
         }
     }
 
@@ -899,7 +899,7 @@ public partial class MainWindow : Window
         }
         catch (Exception exception)
         {
-            App.LogDiagnostic("Progress", $"save for {reason} failed: {exception}");
+            App.LogDiagnostic("Progress", $"save for {reason} failed; path={_currentBookPath ?? "<none>"}; {exception}");
         }
     }
 
