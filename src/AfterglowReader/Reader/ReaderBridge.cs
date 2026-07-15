@@ -8,7 +8,7 @@ internal sealed record ReaderReadyMessage : ReaderMessage;
 
 internal sealed record WindowRequestMessage(int Direction, string? AnchorId, double AnchorOffset) : ReaderMessage;
 
-internal sealed record ProgressChangedMessage(string? ParagraphId, double Offset) : ReaderMessage;
+internal sealed record ProgressChangedMessage(string? ParagraphId, double Offset, long Sequence) : ReaderMessage;
 
 internal sealed record ChapterSelectionMessage(string? ChapterId) : ReaderMessage;
 
@@ -40,7 +40,8 @@ internal static class ReaderBridge
                 GetDouble(root, "anchorOffset")),
             "progressChanged" => new ProgressChangedMessage(
                 GetString(root, "paragraphId"),
-                GetDouble(root, "offset")),
+                GetDouble(root, "offset"),
+                GetInt64(root, "sequence")),
             "selectChapter" => new ChapterSelectionMessage(GetString(root, "chapterId")),
             "openFile" => new OpenFileMessage(),
             "beginWindowDrag" => new WindowDragMessage(),
@@ -55,6 +56,9 @@ internal static class ReaderBridge
 
     private static int GetInt32(JsonElement root, string propertyName)
         => root.TryGetProperty(propertyName, out var element) && element.TryGetInt32(out var value) ? value : 0;
+
+    private static long GetInt64(JsonElement root, string propertyName)
+        => root.TryGetProperty(propertyName, out var element) && element.TryGetInt64(out var value) ? value : 0;
 
     private static double GetDouble(JsonElement root, string propertyName)
         => root.TryGetProperty(propertyName, out var element) && element.TryGetDouble(out var value) ? value : 0;

@@ -54,6 +54,7 @@ public partial class MainWindow : Window
     private string? _selectedChapterId;
     private string? _lastAnchorId;
     private double _lastAnchorOffset;
+    private long _lastProgressSequence;
 
     public MainWindow()
     {
@@ -690,7 +691,7 @@ public partial class MainWindow : Window
                     _ = HandleWindowRequestAsync(request.Direction, request.AnchorId, request.AnchorOffset);
                     break;
                 case ProgressChangedMessage progress:
-                    RecordProgress(progress.ParagraphId, progress.Offset);
+                    RecordProgress(progress.ParagraphId, progress.Offset, progress.Sequence);
                     break;
                 case ChapterSelectionMessage chapter:
                     _ = HandleChapterSelectionAsync(chapter.ChapterId);
@@ -796,8 +797,20 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RecordProgress(string? paragraphId, double offset)
-        => UpdateProgress(paragraphId, offset, scheduleDelayedSave: true, allowDuringShutdown: false);
+    private void RecordProgress(string? paragraphId, double offset, long sequence = 0)
+    {
+        if (sequence > 0 && sequence <= _lastProgressSequence)
+        {
+            return;
+        }
+
+        if (sequence > 0)
+        {
+            _lastProgressSequence = sequence;
+        }
+
+        UpdateProgress(paragraphId, offset, scheduleDelayedSave: true, allowDuringShutdown: false);
+    }
 
     private void UpdateProgress(string? paragraphId, double offset, bool scheduleDelayedSave, bool allowDuringShutdown)
     {
@@ -911,8 +924,9 @@ public partial class MainWindow : Window
             }
 
             var result = await script;
-            if (TryParseCapturedAnchor(result, out var paragraphId, out var offset))
+            if (TryParseCapturedAnchor(result, out var paragraphId, out var offset, out var sequence))
             {
+                _lastProgressSequence = Math.Max(_lastProgressSequence, sequence);
                 UpdateProgress(paragraphId, offset, scheduleDelayedSave: false, allowDuringShutdown: true);
             }
         }
@@ -922,10 +936,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private static bool TryParseCapturedAnchor(string json, out string? paragraphId, out double offset)
+    private static bool TryParseCapturedAnchor(string json, out string? paragraphId, out double offset, out long sequence)
     {
         paragraphId = null;
         offset = 0;
+        sequence = 0;
         try
         {
             using var document = JsonDocument.Parse(json);
@@ -941,6 +956,10 @@ public partial class MainWindow : Window
             }
 
             paragraphId = id.GetString();
+            if (root.TryGetProperty("sequence", out var sequenceElement) && sequenceElement.TryGetInt64(out var parsedSequence))
+            {
+                sequence = Math.Max(0, parsedSequence);
+            }
             return true;
         }
         catch (JsonException)

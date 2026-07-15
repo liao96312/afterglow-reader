@@ -13,6 +13,7 @@
   let lastFrame = 0;
   let windowRequestPending = false;
   let progressTimer = 0;
+  let progressSequence = 0;
   let dragState = null;
   let toastTimer = 0;
   let toolbarHideTimer = 0;
@@ -147,7 +148,7 @@
     return anchor ? { id: anchor.dataset.paragraphId, offset: anchor.getBoundingClientRect().top } : { id: null, offset: 0 };
   };
 
-  window.captureCurrentAnchor = () => anchorForWindowRequest();
+  window.captureCurrentAnchor = () => ({ ...anchorForWindowRequest(), sequence: progressSequence });
 
   const requestWindow = (direction) => {
     if (windowRequestPending || !window.chrome?.webview) return;
@@ -160,7 +161,7 @@
     progressTimer = 0;
     if (!window.chrome?.webview) return;
     const anchor = anchorForWindowRequest();
-    window.chrome.webview.postMessage(JSON.stringify({ type: 'progressChanged', paragraphId: anchor.id, offset: anchor.offset }));
+    window.chrome.webview.postMessage(JSON.stringify({ type: 'progressChanged', paragraphId: anchor.id, offset: anchor.offset, sequence: ++progressSequence }));
   };
 
   const updateActiveFromScroll = () => {
