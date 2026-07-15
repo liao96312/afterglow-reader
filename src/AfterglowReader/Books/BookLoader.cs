@@ -97,6 +97,10 @@ public static partial class BookLoader
 
             return new BookDocument(path, title, ChunkParagraphsIntoChapters(paragraphs, title));
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (BookReaderException)
         {
             throw;
