@@ -1,4 +1,6 @@
 using System.Windows;
+using System.ComponentModel;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -33,7 +35,11 @@ public partial class MainWindow : Window
     private readonly TaskCompletionSource<bool> _readerReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly SemaphoreSlim _renderGate = new(1, 1);
     private CancellationTokenSource? _progressSaveCts;
+    private Task? _progressSaveTask;
     private CancellationTokenSource? _bookLoadCts;
+    private Task? _shutdownTask;
+    private bool _shutdownRequested;
+    private bool _shutdownCompleted;
     private ReaderSession? _session;
     private string? _currentBookPath;
     private string? _selectedChapterId;
@@ -45,6 +51,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
+        Closing += OnClosing;
         Closed += OnClosed;
     }
 
@@ -67,11 +74,12 @@ public partial class MainWindow : Window
         RestoreWindowSettings((await _stateStore.LoadSettingsAsync()).Normalize());
         _progress.AddRange(await _stateStore.LoadProgressAsync());
         _tray = new TrayService(
+            DispatchTrayAction,
             ShowWithoutActivation,
             ToggleClickThrough,
             OpenFilePlaceholder,
             ShowSettingsPlaceholder,
-            () => System.Windows.Application.Current.Shutdown());
+            RequestShutdown);
 
         try
         {
@@ -110,6 +118,17 @@ public partial class MainWindow : Window
 
     private IntPtr WindowMessageHook(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (_shutdownRequested || _shutdownCompleted)
+        {
+            if (message == PlatformNativeWindow.WmShowReader
+                || message == PlatformNativeWindow.WmHotKey)
+            {
+                handled = true;
+            }
+
+            return IntPtr.Zero;
+        }
+
         if (message == PlatformNativeWindow.WmHotKey && wParam.ToInt32() == BossHotKeyId)
         {
             ToggleHidden();
@@ -125,6 +144,11 @@ public partial class MainWindow : Window
             ToggleAutoScroll();
             handled = true;
         }
+        else if (message == PlatformNativeWindow.WmShowReader)
+        {
+            ShowWithoutActivation();
+            handled = true;
+        }
         else if (message == PlatformNativeWindow.WmNcHitTest)
         {
             if (_clickThrough)
@@ -133,32 +157,7 @@ public partial class MainWindow : Window
                 return new IntPtr(PlatformNativeWindow.HtTransparent);
             }
 
-            const int htLeft = 10;
-            const int htRight = 11;
-            const int htTop = 12;
-            const int htTopLeft = 13;
-            const int htTopRight = 14;
-            const int htBottom = 15;
-            const int htBottomLeft = 16;
-            const int htBottomRight = 17;
-
-            var point = GetScreenPoint(lParam);
-            var thickness = GetResizeBorderThickness();
-            var border = GetResizeBorderPixels(thickness);
-            var rect = new Rect(Left, Top, ActualWidth > 0 ? ActualWidth : Width, ActualHeight > 0 ? ActualHeight : Height);
-            var left = point.X >= rect.Left && point.X < rect.Left + border;
-            var right = point.X <= rect.Right && point.X > rect.Right - border;
-            var top = point.Y >= rect.Top && point.Y < rect.Top + border;
-            var bottom = point.Y <= rect.Bottom && point.Y > rect.Bottom - border;
-
-            if (top && left) { handled = true; return new IntPtr(htTopLeft); }
-            if (top && right) { handled = true; return new IntPtr(htTopRight); }
-            if (bottom && left) { handled = true; return new IntPtr(htBottomLeft); }
-            if (bottom && right) { handled = true; return new IntPtr(htBottomRight); }
-            if (left) { handled = true; return new IntPtr(htLeft); }
-            if (right) { handled = true; return new IntPtr(htRight); }
-            if (top) { handled = true; return new IntPtr(htTop); }
-            if (bottom) { handled = true; return new IntPtr(htBottom); }
+            return HitTestResizeBorder(lParam, ref handled);
         }
 
         return IntPtr.Zero;
@@ -223,6 +222,28 @@ public partial class MainWindow : Window
         }
     }
 
+    private void DispatchTrayAction(Action action)
+    {
+        if (_shutdownRequested || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+    }
+
+    private void RequestShutdown()
+    {
+        if (_shutdownTask is not null || Dispatcher.HasShutdownStarted)
+        {
+            return;
+        }
+
+        _shutdownRequested = true;
+        _tray?.SetEnabled(false);
+        _shutdownTask = CompleteShutdownAsync();
+    }
+
 
     private void HideImmediately()
     {
@@ -232,6 +253,11 @@ public partial class MainWindow : Window
 
     private void ShowWithoutActivation()
     {
+        if (_shutdownRequested || _shutdownCompleted)
+        {
+            return;
+        }
+
         _isHidden = false;
         if (!IsVisible)
         {
@@ -242,6 +268,39 @@ public partial class MainWindow : Window
         PlatformNativeWindow.ShowWithoutActivation(hwnd, (int)Left, (int)Top, (int)Width, (int)Height);
     }
 
+    private IntPtr HitTestResizeBorder(IntPtr lParam, ref bool handled)
+    {
+        const int htClient = 1;
+        const int htLeft = 10;
+        const int htRight = 11;
+        const int htTop = 12;
+        const int htTopLeft = 13;
+        const int htTopRight = 14;
+        const int htBottom = 15;
+        const int htBottomLeft = 16;
+        const int htBottomRight = 17;
+
+        var point = GetScreenPoint(lParam);
+        var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        var border = Math.Max(8, (int)Math.Round(8 * dpi));
+        var left = point.X < Left + border;
+        var right = point.X >= Left + ActualWidth - border;
+        var top = point.Y < Top + border;
+        var bottom = point.Y >= Top + ActualHeight - border;
+
+        if (top && left) { handled = true; return new IntPtr(htTopLeft); }
+        if (top && right) { handled = true; return new IntPtr(htTopRight); }
+        if (bottom && left) { handled = true; return new IntPtr(htBottomLeft); }
+        if (bottom && right) { handled = true; return new IntPtr(htBottomRight); }
+        if (left) { handled = true; return new IntPtr(htLeft); }
+        if (right) { handled = true; return new IntPtr(htRight); }
+        if (top) { handled = true; return new IntPtr(htTop); }
+        if (bottom) { handled = true; return new IntPtr(htBottom); }
+
+        handled = true;
+        return new IntPtr(htClient);
+    }
+
     private System.Windows.Point GetScreenPoint(IntPtr lParam)
     {
         var value = lParam.ToInt64();
@@ -250,11 +309,66 @@ public partial class MainWindow : Window
         return new System.Windows.Point(x, y);
     }
 
-    private double GetResizeBorderThickness()
-        => 8 * VisualTreeHelper.GetDpi(this).DpiScaleX;
+    private void DragThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        if (_clickThrough)
+        {
+            return;
+        }
 
-    private static int GetResizeBorderPixels(double thickness)
-        => Math.Max(6, (int)Math.Round(thickness));
+        Left += e.HorizontalChange;
+        Top += e.VerticalChange;
+    }
+
+    private void TopResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        => ResizeFromTop(e.VerticalChange);
+
+    private void LeftResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        => ResizeFromLeft(e.HorizontalChange);
+
+    private void RightResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        => Width = Math.Max(MinWidth, Width + e.HorizontalChange);
+
+    private void BottomResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        => Height = Math.Max(MinHeight, Height + e.VerticalChange);
+
+    private void TopLeftResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        ResizeFromTop(e.VerticalChange);
+        ResizeFromLeft(e.HorizontalChange);
+    }
+
+    private void TopRightResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        ResizeFromTop(e.VerticalChange);
+        Width = Math.Max(MinWidth, Width + e.HorizontalChange);
+    }
+
+    private void BottomLeftResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        ResizeFromLeft(e.HorizontalChange);
+        Height = Math.Max(MinHeight, Height + e.VerticalChange);
+    }
+
+    private void BottomRightResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+    {
+        Width = Math.Max(MinWidth, Width + e.HorizontalChange);
+        Height = Math.Max(MinHeight, Height + e.VerticalChange);
+    }
+
+    private void ResizeFromTop(double delta)
+    {
+        var newHeight = Math.Max(MinHeight, Height - delta);
+        Top += Height - newHeight;
+        Height = newHeight;
+    }
+
+    private void ResizeFromLeft(double delta)
+    {
+        var newWidth = Math.Max(MinWidth, Width - delta);
+        Left += Width - newWidth;
+        Width = newWidth;
+    }
 
     private void ToggleClickThrough()
     {
@@ -274,7 +388,7 @@ public partial class MainWindow : Window
             Filter = "电子书|*.txt;*.epub;*.mobi|所有文件|*.*",
             CheckFileExists = true
         };
-        if (dialog.ShowDialog() == true)
+        if (dialog.ShowDialog(this) == true)
         {
             var loadCts = new CancellationTokenSource();
             var previousLoadCts = Interlocked.Exchange(ref _bookLoadCts, loadCts);
@@ -310,6 +424,11 @@ public partial class MainWindow : Window
             catch (BookReaderException exception)
             {
                 StatusText.Text = exception.Message;
+            }
+            catch (Exception exception)
+            {
+                App.LogDiagnostic("Books", $"open failed: {exception}");
+                StatusText.Text = "打开书籍失败，请查看诊断日志。";
             }
             finally
             {
@@ -350,17 +469,51 @@ public partial class MainWindow : Window
         _statusHideTimer.Start();
     }
 
-    private void OnClosed(object? sender, EventArgs e)
+    private void OnClosing(object? sender, CancelEventArgs e)
     {
-        _bookLoadCts?.Cancel();
-        SaveProgressNowAsync().GetAwaiter().GetResult();
-        _stateStore.SaveSettingsAsync(new ReaderSettings(
+        if (_shutdownCompleted)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        RequestShutdown();
+    }
+
+    private async Task CompleteShutdownAsync()
+    {
+        try
+        {
+            _bookLoadCts?.Cancel();
+            await SaveProgressNowAsync();
+            await SaveWindowSettingsAsync();
+            App.LogDiagnostic("Shutdown", "state saved");
+        }
+        catch (Exception exception)
+        {
+            App.LogDiagnostic("Shutdown", $"save failed: {exception}");
+        }
+        finally
+        {
+            _shutdownCompleted = true;
+            _tray?.Dispose();
+            _tray = null;
+            _ = Dispatcher.BeginInvoke(new Action(Close), System.Windows.Threading.DispatcherPriority.Normal);
+        }
+    }
+
+    private async Task SaveWindowSettingsAsync()
+    {
+        await _stateStore.SaveSettingsAsync(new ReaderSettings(
             Opacity: Opacity,
             WindowLeft: double.IsFinite(Left) ? Left : null,
             WindowTop: double.IsFinite(Top) ? Top : null,
             WindowWidth: double.IsFinite(Width) ? Width : null,
-            WindowHeight: double.IsFinite(Height) ? Height : null)).GetAwaiter().GetResult();
+            WindowHeight: double.IsFinite(Height) ? Height : null));
+    }
 
+    private void OnClosed(object? sender, EventArgs e)
+    {
         var hwnd = new WindowInteropHelper(this).Handle;
         if (_bossHotKeyRegistered)
         {
@@ -376,7 +529,6 @@ public partial class MainWindow : Window
         }
 
         _hwndSource?.RemoveHook(WindowMessageHook);
-        _tray?.Dispose();
         _statusHideTimer?.Stop();
         ReaderView.Dispose();
         _progressSaveCts?.Dispose();
@@ -536,7 +688,9 @@ public partial class MainWindow : Window
 
     private void RecordProgress(string? paragraphId, double offset)
     {
-        if (string.IsNullOrWhiteSpace(_currentBookPath) || string.IsNullOrWhiteSpace(paragraphId))
+        if (_shutdownRequested
+            || string.IsNullOrWhiteSpace(_currentBookPath)
+            || string.IsNullOrWhiteSpace(paragraphId))
         {
             return;
         }
@@ -557,7 +711,7 @@ public partial class MainWindow : Window
         _progressSaveCts?.Cancel();
         _progressSaveCts?.Dispose();
         _progressSaveCts = new CancellationTokenSource();
-        _ = SaveProgressAfterDelayAsync(_progressSaveCts.Token);
+        _progressSaveTask = SaveProgressAfterDelayAsync(_progressSaveCts.Token);
     }
 
     private async Task SaveProgressAfterDelayAsync(CancellationToken cancellationToken)
@@ -571,11 +725,31 @@ public partial class MainWindow : Window
         {
             // A newer scroll position superseded this pending save.
         }
+        catch (Exception exception)
+        {
+            App.LogDiagnostic("Progress", $"delayed save failed: {exception}");
+        }
     }
 
     private async Task SaveProgressNowAsync()
     {
         _progressSaveCts?.Cancel();
+        if (_progressSaveTask is not null)
+        {
+            try
+            {
+                await _progressSaveTask;
+            }
+            catch (Exception exception)
+            {
+                App.LogDiagnostic("Progress", $"pending save failed: {exception}");
+            }
+            finally
+            {
+                _progressSaveTask = null;
+            }
+        }
+
         if (_currentBookPath is not null)
         {
             var value = new BookProgress(_currentBookPath, _lastAnchorId, _lastAnchorOffset, DateTimeOffset.UtcNow);

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows.Threading;
+using PlatformNativeWindow = AfterglowReader.SystemIntegration.NativeWindow;
 
 namespace AfterglowReader;
 
@@ -8,10 +9,12 @@ namespace AfterglowReader;
 /// </summary>
 public partial class App : System.Windows.Application
 {
+    private const string InstanceMutexName = @"Local\AfterglowReader.SingleInstance";
     private static readonly string LogPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "AfterglowReader",
         "startup.log");
+    private Mutex? _instanceMutex;
 
     public App()
     {
@@ -22,9 +25,24 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
+        _instanceMutex = new Mutex(true, InstanceMutexName, out var createdNew);
+        if (!createdNew)
+        {
+            PlatformNativeWindow.NotifyExistingInstance();
+            Shutdown();
+            return;
+        }
+
         MainWindow = new MainWindow();
         MainWindow.Show();
         LogMessage("Startup", "MainWindow.Show completed");
+    }
+
+    protected override void OnExit(System.Windows.ExitEventArgs e)
+    {
+        _instanceMutex?.Dispose();
+        _instanceMutex = null;
+        base.OnExit(e);
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

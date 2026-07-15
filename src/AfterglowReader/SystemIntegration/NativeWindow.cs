@@ -5,6 +5,7 @@ namespace AfterglowReader.SystemIntegration;
 internal static class NativeWindow
 {
     internal const int WmHotKey = 0x0312;
+    internal const int WmShowReader = 0x8001;
     internal const int WmNcHitTest = 0x0084;
     internal const int HtTransparent = -1;
     internal const int GwlExStyle = -20;
@@ -53,6 +54,12 @@ internal static class NativeWindow
     internal static void UnregisterBossHotKey(IntPtr hwnd, int id)
         => UnregisterHotKey(hwnd, id);
 
+    internal static bool NotifyExistingInstance()
+    {
+        var hwnd = FindWindow(null, "余光阅读器");
+        return hwnd != IntPtr.Zero && PostMessage(hwnd, WmShowReader, IntPtr.Zero, IntPtr.Zero);
+    }
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
 
@@ -64,6 +71,12 @@ internal static class NativeWindow
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(

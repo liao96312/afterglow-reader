@@ -33,6 +33,7 @@ public sealed class ReaderStateStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web) { WriteIndented = true };
     private readonly string _root;
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     public ReaderStateStore(string? root = null)
     {
@@ -53,21 +54,39 @@ public sealed class ReaderStateStore
 
     private async Task WriteJsonAtomicAsync<T>(string fileName, T value, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_root);
-        var target = Path.Combine(_root, fileName);
-        var temp = target + ".tmp";
-        await using (var stream = File.Create(temp))
+        await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            await JsonSerializer.SerializeAsync(stream, value, JsonOptions, cancellationToken);
-        }
+            Directory.CreateDirectory(_root);
+            var target = Path.Combine(_root, fileName);
+            var temp = $"{target}.{Guid.NewGuid():N}.tmp";
+            try
+            {
+                await using (var stream = File.Create(temp))
+                {
+                    await JsonSerializer.SerializeAsync(stream, value, JsonOptions, cancellationToken).ConfigureAwait(false);
+                }
 
-        if (File.Exists(target))
-        {
-            File.Replace(temp, target, null);
+                if (File.Exists(target))
+                {
+                    File.Replace(temp, target, null);
+                }
+                else
+                {
+                    File.Move(temp, target);
+                }
+            }
+            finally
+            {
+                if (File.Exists(temp))
+                {
+                    File.Delete(temp);
+                }
+            }
         }
-        else
+        finally
         {
-            File.Move(temp, target);
+            _writeGate.Release();
         }
     }
 

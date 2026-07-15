@@ -6,6 +6,7 @@
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:local="clr-namespace:AfterglowReader"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="余光阅读器"
         Icon="/AfterglowReader;component/Assets/afterglow.ico"
@@ -32,6 +33,76 @@
     </shell:WindowChrome.WindowChrome>
     <Grid Background="#F7F3EA" ClipToBounds="True">
         <wv2:WebView2 x:Name="ReaderView" />
+
+        <Grid Background="Transparent" Panel.ZIndex="2">
+            <primitives:Thumb x:Name="DragThumb"
+                              Height="28"
+                              VerticalAlignment="Top"
+                              HorizontalAlignment="Stretch"
+                              Background="Transparent"
+                              DragDelta="DragThumb_DragDelta" />
+            <primitives:Thumb x:Name="TopResizeThumb"
+                              Height="6"
+                              VerticalAlignment="Top"
+                              HorizontalAlignment="Stretch"
+                              Cursor="SizeNS"
+                              Background="Transparent"
+                              DragDelta="TopResizeThumb_DragDelta" />
+            <primitives:Thumb x:Name="LeftResizeThumb"
+                              Width="6"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Stretch"
+                              Cursor="SizeWE"
+                              Background="Transparent"
+                              DragDelta="LeftResizeThumb_DragDelta" />
+            <primitives:Thumb x:Name="RightResizeThumb"
+                              Width="6"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Stretch"
+                              Cursor="SizeWE"
+                              Background="Transparent"
+                              DragDelta="RightResizeThumb_DragDelta" />
+            <primitives:Thumb x:Name="BottomResizeThumb"
+                              Height="6"
+                              HorizontalAlignment="Stretch"
+                              VerticalAlignment="Bottom"
+                              Cursor="SizeNS"
+                              Background="Transparent"
+                              DragDelta="BottomResizeThumb_DragDelta" />
+            <primitives:Thumb x:Name="TopLeftResizeThumb"
+                              Width="10"
+                              Height="10"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Top"
+                              Cursor="SizeNWSE"
+                              Background="Transparent"
+                              DragDelta="TopLeftResizeThumb_DragDelta" />
+            <primitives:Thumb x:Name="TopRightResizeThumb"
+                              Width="10"
+                              Height="10"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Top"
+                              Cursor="SizeNESW"
+                              Background="Transparent"
+                              DragDelta="TopRightResizeThumb_DragDelta" />
+            <primitives:Thumb x:Name="BottomLeftResizeThumb"
+                              Width="10"
+                              Height="10"
+                              HorizontalAlignment="Left"
+                              VerticalAlignment="Bottom"
+                              Cursor="SizeNESW"
+                              Background="Transparent"
+                              DragDelta="BottomLeftResizeThumb_DragDelta" />
+            <primitives:Thumb x:Name="BottomRightResizeThumb"
+                              Width="10"
+                              Height="10"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Bottom"
+                              Cursor="SizeNWSE"
+                              Background="Transparent"
+                              DragDelta="BottomRightResizeThumb_DragDelta" />
+        </Grid>
+
         <Border x:Name="StatusPanel"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
@@ -39,7 +110,8 @@
                 Padding="10,6"
                 Background="#DD2A2521"
                 CornerRadius="5"
-                IsHitTestVisible="False">
+                IsHitTestVisible="False"
+                Panel.ZIndex="3">
             <TextBlock x:Name="StatusText"
                        Foreground="White"
                        FontSize="12"

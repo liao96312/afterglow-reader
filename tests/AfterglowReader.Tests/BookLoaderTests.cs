@@ -168,6 +168,30 @@ public sealed class BookLoaderTests
     }
 
     [Fact]
+    public async Task SerializesConcurrentStateWritesWithoutLeavingTempFiles()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-race-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new ReaderStateStore(root);
+            var writes = Enumerable.Range(0, 20)
+                .Select(index => store.SaveProgressAsync([
+                    new BookProgress($"book-{index}.txt", $"ch-{index}", index, DateTimeOffset.UtcNow)
+                ]));
+
+            await Task.WhenAll(writes);
+
+            var progress = await store.LoadProgressAsync();
+            Assert.Single(progress);
+            Assert.DoesNotContain(Directory.EnumerateFiles(root), path => path.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void ReaderSessionKeepsOnlyThreeChaptersInTheRenderWindow()
     {
         var chapters = Enumerable.Range(0, 5)
