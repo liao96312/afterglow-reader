@@ -4,6 +4,7 @@
   const openFile = document.getElementById('open-file');
   const directoryToggle = document.getElementById('directory-toggle');
   const autoScrollButton = document.getElementById('auto-scroll');
+  const appLabel = document.getElementById('app-label');
   const toast = document.getElementById('toast');
   let raf = 0;
   let targetScroll = 0;
@@ -45,6 +46,21 @@
     window.toggleAutoScroll?.();
     keepToolbarVisible();
   };
+
+  const postWindowAction = (message) => (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.chrome?.webview?.postMessage(JSON.stringify(message));
+  };
+
+  appLabel.addEventListener('pointerdown', postWindowAction({ type: 'beginWindowDrag' }));
+  for (const handle of document.querySelectorAll('.window-resize-handle')) {
+    handle.addEventListener('pointerdown', postWindowAction({
+      type: 'beginWindowResize',
+      edge: handle.dataset.edge
+    }));
+  }
 
   window.setChapterIndex = (items) => {
     chapters.replaceChildren();
@@ -182,7 +198,7 @@
   }, { passive: false });
 
   const isInteractiveTarget = (target) => target instanceof Element
-    && Boolean(target.closest('a, button, input, textarea, select, [contenteditable="true"]'));
+    && Boolean(target.closest('a, button, input, textarea, select, [contenteditable="true"], [data-window-action]'));
 
   addEventListener('pointerdown', (event) => {
     if (event.button !== 0 || isInteractiveTarget(event.target)) return;

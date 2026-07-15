@@ -7,6 +7,7 @@ internal static class NativeWindow
     internal const int WmHotKey = 0x0312;
     internal const int WmShowReader = 0x8001;
     internal const int WmNcHitTest = 0x0084;
+    internal const int WmNcLeftButtonDown = 0x00A1;
     internal const int HtTransparent = -1;
     internal const int GwlExStyle = -20;
     internal const long WsExToolWindow = 0x00000080;
@@ -60,6 +61,21 @@ internal static class NativeWindow
         return hwnd != IntPtr.Zero && PostMessage(hwnd, WmShowReader, IntPtr.Zero, IntPtr.Zero);
     }
 
+    internal static bool TryGetWindowRect(IntPtr hwnd, out WindowBounds bounds)
+        => GetWindowRect(hwnd, out bounds);
+
+    internal static uint GetWindowDpi(IntPtr hwnd)
+    {
+        var dpi = GetDpiForWindow(hwnd);
+        return dpi == 0 ? 96u : dpi;
+    }
+
+    internal static void BeginWindowMoveOrResize(IntPtr hwnd, int hitTest)
+    {
+        ReleaseCapture();
+        PostMessage(hwnd, WmNcLeftButtonDown, new IntPtr(hitTest), IntPtr.Zero);
+    }
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
     private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
 
@@ -78,6 +94,15 @@ internal static class NativeWindow
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
+    [DllImport("user32.dll")]
+    private static extern bool ReleaseCapture();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out WindowBounds lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(IntPtr hWnd);
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(
         IntPtr hWnd,
@@ -87,4 +112,13 @@ internal static class NativeWindow
         int cx,
         int cy,
         uint uFlags);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct WindowBounds
+{
+    internal int Left;
+    internal int Top;
+    internal int Right;
+    internal int Bottom;
 }

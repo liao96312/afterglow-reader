@@ -14,6 +14,10 @@ internal sealed record ChapterSelectionMessage(string? ChapterId) : ReaderMessag
 
 internal sealed record OpenFileMessage : ReaderMessage;
 
+internal sealed record WindowDragMessage : ReaderMessage;
+
+internal sealed record WindowResizeMessage(string? Edge) : ReaderMessage;
+
 internal static class ReaderBridge
 {
     public static ReaderMessage? Parse(string json)
@@ -37,6 +41,8 @@ internal static class ReaderBridge
                 GetDouble(root, "offset")),
             "selectChapter" => new ChapterSelectionMessage(GetString(root, "chapterId")),
             "openFile" => new OpenFileMessage(),
+            "beginWindowDrag" => new WindowDragMessage(),
+            "beginWindowResize" => new WindowResizeMessage(GetString(root, "edge")),
             _ => null
         };
     }

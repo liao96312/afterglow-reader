@@ -17,7 +17,7 @@ body { color: var(--ink); font: 19px/1.8 Georgia, 'Microsoft YaHei', sans-serif;
 #toolbar { flex: 0 0 auto; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; gap: var(--space); min-height: 48px; padding: 8px 16px; background: var(--page); }
 #toolbar { transition: opacity .2s ease, transform .2s ease; }
 body.toolbar-hidden #toolbar { opacity: 0; transform: translateY(-8px); pointer-events: none; }
-#app-label { color: var(--muted); font-size: 14px; font-weight: 600; line-height: 1.2; letter-spacing: .04em; }
+#app-label { color: var(--muted); font-size: 14px; font-weight: 600; line-height: 1.2; letter-spacing: .04em; cursor: move; user-select: none; }
 #toolbar-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 #toolbar button { border: 0; border-radius: var(--radius); min-height: 32px; padding: 6px 10px; color: var(--muted); background: var(--control); cursor: pointer; }
 #toolbar button:hover { background: var(--control-hover); }
@@ -37,6 +37,15 @@ h1 { font-size: 28px; line-height: 1.35; margin: 0 0 18px; }
 h2 { font-size: 22px; line-height: 1.45; margin: 36px 0 14px; scroll-margin-top: 16px; }
 p { margin: 0 0 16px; }
 #toast { position: fixed; z-index: 3; top: 10px; left: 50%; transform: translateX(-50%); max-width: min(80vw, 520px); padding: 7px 12px; border-radius: var(--radius); color: #fff; background: #2a2521e6; font-size: 13px; pointer-events: none; }
+.window-resize-handle { position: fixed; z-index: 10; }
+.window-resize-handle.top { top: 0; left: 10px; right: 10px; height: 7px; cursor: ns-resize; }
+.window-resize-handle.right { top: 10px; right: 0; bottom: 10px; width: 7px; cursor: ew-resize; }
+.window-resize-handle.bottom { right: 10px; bottom: 0; left: 10px; height: 7px; cursor: ns-resize; }
+.window-resize-handle.left { top: 10px; bottom: 10px; left: 0; width: 7px; cursor: ew-resize; }
+.window-resize-handle.top-left { top: 0; left: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.window-resize-handle.top-right { top: 0; right: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.window-resize-handle.bottom-left { bottom: 0; left: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+.window-resize-handle.bottom-right { right: 0; bottom: 0; width: 12px; height: 12px; cursor: nwse-resize; }
 html.dragging, html.dragging * { cursor: grabbing !important; user-select: none !important; }
 @media (max-width: 560px) {
   #toolbar { min-height: 44px; padding: 6px 12px; }

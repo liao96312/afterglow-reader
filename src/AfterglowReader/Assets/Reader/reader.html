@@ -7,7 +7,7 @@
 <body>
   <main id="reader">
     <header id="toolbar" aria-label="阅读工具栏">
-      <span id="app-label">余光阅读器</span>
+      <span id="app-label" data-window-action title="按住拖动窗口">余光阅读器</span>
       <div id="toolbar-actions">
         <button id="open-file" type="button">打开文件</button>
         <button id="directory-toggle" type="button">目录</button>
@@ -25,6 +25,14 @@
     </div>
     <div id="toast" role="status" aria-live="polite" hidden></div>
   </main>
+  <div class="window-resize-handle top" data-window-action data-edge="top" aria-hidden="true"></div>
+  <div class="window-resize-handle right" data-window-action data-edge="right" aria-hidden="true"></div>
+  <div class="window-resize-handle bottom" data-window-action data-edge="bottom" aria-hidden="true"></div>
+  <div class="window-resize-handle left" data-window-action data-edge="left" aria-hidden="true"></div>
+  <div class="window-resize-handle top-left" data-window-action data-edge="topLeft" aria-hidden="true"></div>
+  <div class="window-resize-handle top-right" data-window-action data-edge="topRight" aria-hidden="true"></div>
+  <div class="window-resize-handle bottom-left" data-window-action data-edge="bottomLeft" aria-hidden="true"></div>
+  <div class="window-resize-handle bottom-right" data-window-action data-edge="bottomRight" aria-hidden="true"></div>
   <script>/*__READER_JS__*/</script>
 </body>
 </html>

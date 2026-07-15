@@ -1,9 +1,6 @@
 using System.Windows;
 using System.ComponentModel;
-using System.Windows.Controls.Primitives;
-using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Text.Json;
 using AfterglowReader.Books;
 using AfterglowReader.Persistence;
@@ -157,7 +154,7 @@ public partial class MainWindow : Window
                 return new IntPtr(PlatformNativeWindow.HtTransparent);
             }
 
-            return HitTestResizeBorder(lParam, ref handled);
+            return HitTestWindow(hwnd, lParam, ref handled);
         }
 
         return IntPtr.Zero;
@@ -268,106 +265,35 @@ public partial class MainWindow : Window
         PlatformNativeWindow.ShowWithoutActivation(hwnd, (int)Left, (int)Top, (int)Width, (int)Height);
     }
 
-    private IntPtr HitTestResizeBorder(IntPtr lParam, ref bool handled)
+    private static IntPtr HitTestWindow(IntPtr hwnd, IntPtr lParam, ref bool handled)
     {
-        const int htClient = 1;
-        const int htLeft = 10;
-        const int htRight = 11;
-        const int htTop = 12;
-        const int htTopLeft = 13;
-        const int htTopRight = 14;
-        const int htBottom = 15;
-        const int htBottomLeft = 16;
-        const int htBottomRight = 17;
-
         var point = GetScreenPoint(lParam);
-        var dpi = VisualTreeHelper.GetDpi(this).DpiScaleX;
-        var border = Math.Max(8, (int)Math.Round(8 * dpi));
-        var left = point.X < Left + border;
-        var right = point.X >= Left + ActualWidth - border;
-        var top = point.Y < Top + border;
-        var bottom = point.Y >= Top + ActualHeight - border;
+        if (!PlatformNativeWindow.TryGetWindowRect(hwnd, out var bounds))
+        {
+            return IntPtr.Zero;
+        }
 
-        if (top && left) { handled = true; return new IntPtr(htTopLeft); }
-        if (top && right) { handled = true; return new IntPtr(htTopRight); }
-        if (bottom && left) { handled = true; return new IntPtr(htBottomLeft); }
-        if (bottom && right) { handled = true; return new IntPtr(htBottomRight); }
-        if (left) { handled = true; return new IntPtr(htLeft); }
-        if (right) { handled = true; return new IntPtr(htRight); }
-        if (top) { handled = true; return new IntPtr(htTop); }
-        if (bottom) { handled = true; return new IntPtr(htBottom); }
-
+        var dpi = PlatformNativeWindow.GetWindowDpi(hwnd);
+        var result = WindowHitTest.Resolve(
+            point.X,
+            point.Y,
+            bounds.Left,
+            bounds.Top,
+            bounds.Right,
+            bounds.Bottom,
+            WindowHitTest.ScaleDip(8, dpi),
+            WindowHitTest.ScaleDip(110, dpi),
+            WindowHitTest.ScaleDip(44, dpi));
         handled = true;
-        return new IntPtr(htClient);
+        return new IntPtr(result);
     }
 
-    private System.Windows.Point GetScreenPoint(IntPtr lParam)
+    private static System.Windows.Point GetScreenPoint(IntPtr lParam)
     {
         var value = lParam.ToInt64();
         var x = unchecked((short)(value & 0xFFFF));
         var y = unchecked((short)((value >> 16) & 0xFFFF));
         return new System.Windows.Point(x, y);
-    }
-
-    private void DragThumb_DragDelta(object sender, DragDeltaEventArgs e)
-    {
-        if (_clickThrough)
-        {
-            return;
-        }
-
-        Left += e.HorizontalChange;
-        Top += e.VerticalChange;
-    }
-
-    private void TopResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-        => ResizeFromTop(e.VerticalChange);
-
-    private void LeftResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-        => ResizeFromLeft(e.HorizontalChange);
-
-    private void RightResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-        => Width = Math.Max(MinWidth, Width + e.HorizontalChange);
-
-    private void BottomResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-        => Height = Math.Max(MinHeight, Height + e.VerticalChange);
-
-    private void TopLeftResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-    {
-        ResizeFromTop(e.VerticalChange);
-        ResizeFromLeft(e.HorizontalChange);
-    }
-
-    private void TopRightResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-    {
-        ResizeFromTop(e.VerticalChange);
-        Width = Math.Max(MinWidth, Width + e.HorizontalChange);
-    }
-
-    private void BottomLeftResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-    {
-        ResizeFromLeft(e.HorizontalChange);
-        Height = Math.Max(MinHeight, Height + e.VerticalChange);
-    }
-
-    private void BottomRightResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
-    {
-        Width = Math.Max(MinWidth, Width + e.HorizontalChange);
-        Height = Math.Max(MinHeight, Height + e.VerticalChange);
-    }
-
-    private void ResizeFromTop(double delta)
-    {
-        var newHeight = Math.Max(MinHeight, Height - delta);
-        Top += Height - newHeight;
-        Height = newHeight;
-    }
-
-    private void ResizeFromLeft(double delta)
-    {
-        var newWidth = Math.Max(MinWidth, Width - delta);
-        Left += Width - newWidth;
-        Width = newWidth;
     }
 
     private void ToggleClickThrough()
@@ -608,12 +534,29 @@ public partial class MainWindow : Window
                 case OpenFileMessage:
                     OpenFilePlaceholder();
                     break;
+                case WindowDragMessage:
+                    BeginWindowMoveOrResize(WindowHitTest.Caption);
+                    break;
+                case WindowResizeMessage resize when WindowHitTest.TryGetResizeRegion(resize.Edge, out var region):
+                    BeginWindowMoveOrResize(region);
+                    break;
             }
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
             // Ignore messages that are not part of the small reader bridge.
         }
+    }
+
+    private void BeginWindowMoveOrResize(int hitTest)
+    {
+        if (_clickThrough || _shutdownRequested)
+        {
+            return;
+        }
+
+        var hwnd = new WindowInteropHelper(this).Handle;
+        PlatformNativeWindow.BeginWindowMoveOrResize(hwnd, hitTest);
     }
 
     private async Task HandleWindowRequestAsync(int direction, string? anchorId, double anchorOffset)
