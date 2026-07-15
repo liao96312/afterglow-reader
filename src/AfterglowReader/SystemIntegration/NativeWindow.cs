@@ -64,6 +64,22 @@ internal static class NativeWindow
     internal static bool TryGetWindowRect(IntPtr hwnd, out WindowBounds bounds)
         => GetWindowRect(hwnd, out bounds);
 
+    internal static bool IsCursorInsideWindow(IntPtr hwnd)
+    {
+        if (!GetCursorPos(out var point) || !GetWindowRect(hwnd, out var bounds))
+        {
+            return false;
+        }
+
+        return point.X >= bounds.Left
+            && point.X < bounds.Right
+            && point.Y >= bounds.Top
+            && point.Y < bounds.Bottom;
+    }
+
+    internal static bool ActivateWindow(IntPtr hwnd)
+        => SetForegroundWindow(hwnd);
+
     internal static uint GetWindowDpi(IntPtr hwnd)
     {
         var dpi = GetDpiForWindow(hwnd);
@@ -101,6 +117,12 @@ internal static class NativeWindow
     private static extern bool GetWindowRect(IntPtr hWnd, out WindowBounds lpRect);
 
     [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out ScreenPoint lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
     private static extern uint GetDpiForWindow(IntPtr hWnd);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -121,4 +143,11 @@ internal struct WindowBounds
     internal int Top;
     internal int Right;
     internal int Bottom;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct ScreenPoint
+{
+    internal int X;
+    internal int Y;
 }

@@ -1,6 +1,7 @@
 using System.Windows;
 using System.ComponentModel;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Text.Json;
 using AfterglowReader.Books;
 using AfterglowReader.Persistence;
@@ -16,6 +17,13 @@ namespace AfterglowReader;
 /// </summary>
 public partial class MainWindow : Window
 {
+    private enum ReaderInteractionState
+    {
+        Hidden,
+        VisiblePassive,
+        VisibleInteractive
+    }
+
     private const int BossHotKeyId = 1001;
     private const int AutoScrollHotKeyId = 1002;
     private const int CtrlTabBossHotKeyId = 1003;
@@ -26,6 +34,8 @@ public partial class MainWindow : Window
     private bool _ctrlTabBossHotKeyRegistered;
     private bool _isHidden;
     private bool _clickThrough;
+    private ReaderInteractionState _readerInteractionState = ReaderInteractionState.Hidden;
+    private bool _pendingReaderInteractionFocus;
     private System.Windows.Threading.DispatcherTimer? _statusHideTimer;
     private readonly ReaderStateStore _stateStore = new();
     private readonly List<BookProgress> _progress = [];
@@ -69,6 +79,7 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         RestoreWindowSettings((await _stateStore.LoadSettingsAsync()).Normalize());
+        _readerInteractionState = ReaderInteractionState.VisiblePassive;
         _progress.AddRange(await _stateStore.LoadProgressAsync());
         _tray = new TrayService(
             DispatchTrayAction,
@@ -106,6 +117,7 @@ public partial class MainWindow : Window
             };
             ReaderView.NavigateToString(ReaderAssetLoader.LoadHtml());
             await WaitForReaderReadyAsync();
+            TryFocusReaderIfRequested();
         }
         catch (Exception exception)
         {
@@ -245,6 +257,8 @@ public partial class MainWindow : Window
     private void HideImmediately()
     {
         _isHidden = true;
+        _readerInteractionState = ReaderInteractionState.Hidden;
+        _pendingReaderInteractionFocus = false;
         Hide();
     }
 
@@ -256,6 +270,7 @@ public partial class MainWindow : Window
         }
 
         _isHidden = false;
+        _readerInteractionState = ReaderInteractionState.VisiblePassive;
         if (!IsVisible)
         {
             Show();
@@ -263,6 +278,46 @@ public partial class MainWindow : Window
 
         var hwnd = new WindowInteropHelper(this).Handle;
         PlatformNativeWindow.ShowWithoutActivation(hwnd, (int)Left, (int)Top, (int)Width, (int)Height);
+        _pendingReaderInteractionFocus = PlatformNativeWindow.IsCursorInsideWindow(hwnd);
+        ResetReaderInteractionGate();
+        TryFocusReaderIfRequested();
+    }
+
+    private void ResetReaderInteractionGate()
+    {
+        if (ReaderView.CoreWebView2 is not null)
+        {
+            _ = ReaderView.CoreWebView2.ExecuteScriptAsync("window.resetReaderInteraction?.();");
+        }
+    }
+
+    private void RequestReaderInteractionFocus()
+    {
+        _pendingReaderInteractionFocus = true;
+        TryFocusReaderIfRequested();
+    }
+
+    private void TryFocusReaderIfRequested()
+    {
+        if (!_pendingReaderInteractionFocus
+            || _isHidden
+            || _clickThrough
+            || _shutdownRequested
+            || _readerInteractionState is ReaderInteractionState.Hidden or ReaderInteractionState.VisibleInteractive
+            || !_readerReady.Task.IsCompleted
+            || ReaderView.CoreWebView2 is null)
+        {
+            return;
+        }
+
+        _pendingReaderInteractionFocus = false;
+        _readerInteractionState = ReaderInteractionState.VisibleInteractive;
+        var hwnd = new WindowInteropHelper(this).Handle;
+        PlatformNativeWindow.ActivateWindow(hwnd);
+        Activate();
+        ReaderView.Focus();
+        Keyboard.Focus(ReaderView);
+        App.LogDiagnostic("Focus", "Reader interaction focus acquired after pointer entered window");
     }
 
     private static IntPtr HitTestWindow(IntPtr hwnd, IntPtr lParam, ref bool handled)
@@ -301,6 +356,22 @@ public partial class MainWindow : Window
         _clickThrough = !_clickThrough;
         var hwnd = new WindowInteropHelper(this).Handle;
         PlatformNativeWindow.SetClickThrough(hwnd, _clickThrough);
+
+        if (_clickThrough)
+        {
+            _readerInteractionState = _isHidden
+                ? ReaderInteractionState.Hidden
+                : ReaderInteractionState.VisiblePassive;
+            _pendingReaderInteractionFocus = false;
+        }
+        else if (!_isHidden)
+        {
+            _readerInteractionState = ReaderInteractionState.VisiblePassive;
+            _pendingReaderInteractionFocus = PlatformNativeWindow.IsCursorInsideWindow(hwnd);
+            ResetReaderInteractionGate();
+            TryFocusReaderIfRequested();
+        }
+
         StatusText.Text = _clickThrough ? "鼠标穿透已开启 · F8 隐藏/恢复" : "鼠标穿透已关闭 · F8 隐藏/恢复";
     }
 
@@ -539,6 +610,9 @@ public partial class MainWindow : Window
                     break;
                 case WindowResizeMessage resize when WindowHitTest.TryGetResizeRegion(resize.Edge, out var region):
                     BeginWindowMoveOrResize(region);
+                    break;
+                case ReaderPointerEnteredMessage:
+                    RequestReaderInteractionFocus();
                     break;
             }
         }

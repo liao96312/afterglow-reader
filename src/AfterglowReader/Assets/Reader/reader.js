@@ -16,6 +16,7 @@
   let dragState = null;
   let toastTimer = 0;
   let toolbarHideTimer = 0;
+  let readerInteractionRequested = false;
 
   const showToast = (message) => {
     if (!toast) return;
@@ -61,6 +62,16 @@
       edge: handle.dataset.edge
     }));
   }
+
+  const requestReaderInteraction = () => {
+    if (readerInteractionRequested) return;
+    readerInteractionRequested = true;
+    window.chrome?.webview?.postMessage(JSON.stringify({ type: 'readerPointerEntered' }));
+  };
+
+  document.addEventListener('pointerenter', requestReaderInteraction, true);
+  addEventListener('pointermove', requestReaderInteraction, { passive: true });
+  window.resetReaderInteraction = () => { readerInteractionRequested = false; };
 
   window.setChapterIndex = (items) => {
     chapters.replaceChildren();

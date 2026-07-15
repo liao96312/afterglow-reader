@@ -18,6 +18,8 @@ internal sealed record WindowDragMessage : ReaderMessage;
 
 internal sealed record WindowResizeMessage(string? Edge) : ReaderMessage;
 
+internal sealed record ReaderPointerEnteredMessage : ReaderMessage;
+
 internal static class ReaderBridge
 {
     public static ReaderMessage? Parse(string json)
@@ -43,6 +45,7 @@ internal static class ReaderBridge
             "openFile" => new OpenFileMessage(),
             "beginWindowDrag" => new WindowDragMessage(),
             "beginWindowResize" => new WindowResizeMessage(GetString(root, "edge")),
+            "readerPointerEntered" => new ReaderPointerEnteredMessage(),
             _ => null
         };
     }
