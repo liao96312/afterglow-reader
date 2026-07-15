@@ -56,6 +56,7 @@ public partial class MainWindow : Window
         _bossHotKeyRegistered = PlatformNativeWindow.RegisterBossHotKey(hwnd, BossHotKeyId);
         _autoScrollHotKeyRegistered = PlatformNativeWindow.RegisterAutoScrollHotKey(hwnd, AutoScrollHotKeyId);
         _altBossHotKeyRegistered = PlatformNativeWindow.RegisterAltBossHotKey(hwnd, AltBossHotKeyId);
+        App.LogDiagnostic("HotKey", $"Alt={_altBossHotKeyRegistered}; F8={_bossHotKeyRegistered}; F7={_autoScrollHotKeyRegistered}");
         StatusText.Text = _bossHotKeyRegistered || _altBossHotKeyRegistered
             ? "F8 隐藏/恢复 · 正在初始化 WebView2…"
             : "F8 注册失败 · 正在初始化 WebView2…";
