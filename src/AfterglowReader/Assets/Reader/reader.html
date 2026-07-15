@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <style>/*__READER_CSS__*/</style>
+</head>
+<body>
+  <main id="reader">
+    <header id="toolbar" aria-label="阅读工具栏">
+      <span id="app-label">余光阅读器</span>
+      <div id="toolbar-actions">
+        <button id="open-file" type="button">打开文件</button>
+        <button id="directory-toggle" type="button">目录</button>
+      </div>
+    </header>
+    <div id="reader-body">
+      <aside id="directory" aria-label="章节目录">
+        <nav id="chapters" aria-label="chapters"></nav>
+      </aside>
+      <article id="content">
+        <h1>余光阅读器</h1>
+        <p>打开 TXT、EPUB 或 MOBI 后，内容会使用统一的章节模型渲染。</p>
+      </article>
+    </div>
+    <div id="toast" role="status" aria-live="polite" hidden></div>
+  </main>
+  <script>/*__READER_JS__*/</script>
+</body>
+</html>
