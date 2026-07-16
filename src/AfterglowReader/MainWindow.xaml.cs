@@ -532,7 +532,10 @@ public partial class MainWindow : Window
 
     private void ShowSettingsPlaceholder()
     {
-        System.Windows.MessageBox.Show(this, "设置页将在 P5 接入。", "余光阅读器", MessageBoxButton.OK, MessageBoxImage.Information);
+        if (ReaderView.CoreWebView2 is not null)
+        {
+            _ = ReaderView.CoreWebView2.ExecuteScriptAsync("window.openSettings?.();");
+        }
     }
 
     private void ShowStatus(string message, int hideAfterMilliseconds = 0)

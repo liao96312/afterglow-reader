@@ -56,6 +56,7 @@
   const publishSettings = () => {
     window.chrome?.webview?.postMessage(JSON.stringify({ type: 'settingsChanged', fontFamily: fontFamily.value, fontSize: Number(fontSize.value), lineHeight: Number(lineHeight.value), opacity: Number(opacity.value), scrollPixelsPerSecond: Number(scrollSpeed.value) }));
   };
+  window.openSettings = () => { settingsPanel.classList.remove('hidden'); keepToolbarVisible(); };
   settingsToggle.onclick = () => { settingsPanel.classList.toggle('hidden'); keepToolbarVisible(); };
   [fontFamily, fontSize, lineHeight, opacity, scrollSpeed].forEach(control => control.addEventListener('input', publishSettings));
   window.applyReaderSettings = (settings) => {
