@@ -264,6 +264,25 @@ public sealed class BookLoaderTests
     }
 
     [Fact]
+    public async Task BacksUpCorruptProgressAndReturnsEmptyState()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-corrupt-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            await File.WriteAllTextAsync(Path.Combine(root, "progress.json"), "{not-json");
+            var progress = await new ReaderStateStore(root).LoadProgressAsync();
+
+            Assert.Empty(progress);
+            Assert.Single(Directory.EnumerateFiles(root, "progress.json.corrupt-*"));
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task LeavesUnknownFutureSchemaUntouchedAndFallsBack()
     {
         var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-future-{Guid.NewGuid():N}");
