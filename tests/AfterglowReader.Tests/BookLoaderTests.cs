@@ -126,7 +126,8 @@ public sealed class BookLoaderTests
         var path = CreateTempFile("broken.mobi", "not a mobi");
         try
         {
-            await Assert.ThrowsAsync<BookReaderException>(() => BookLoader.LoadMobiAsync(path));
+            var error = await Assert.ThrowsAsync<BookReaderException>(() => BookLoader.LoadMobiAsync(path));
+            Assert.Contains("未加密", error.Message);
         }
         finally
         {
