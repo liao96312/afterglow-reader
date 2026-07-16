@@ -409,6 +409,7 @@ public partial class MainWindow : Window
         }
 
         _fileDialogOpen = true;
+        _tray?.SetEnabled(false);
         App.LogDiagnostic("Tray", "open-book started");
         try
         {
@@ -431,6 +432,10 @@ public partial class MainWindow : Window
         finally
         {
             _fileDialogOpen = false;
+            if (!_shutdownRequested)
+            {
+                _tray?.SetEnabled(true);
+            }
         }
     }
 
