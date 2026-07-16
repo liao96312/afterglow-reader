@@ -20,12 +20,12 @@ internal sealed class TrayService : IDisposable
     {
         _dispatch = dispatch;
         _menu = new Forms.ContextMenuStrip();
-        _menu.Items.Add("显示/恢复阅读器", null, (_, _) => Post(showReader));
-        _menu.Items.Add("打开书籍…", null, (_, _) => Post(openFile));
-        _menu.Items.Add("鼠标穿透", null, (_, _) => Post(toggleClickThrough));
+        _menu.Items.Add("显示/恢复阅读器", null, (_, _) => Post("show-reader", showReader));
+        _menu.Items.Add("打开书籍…", null, (_, _) => Post("open-book", openFile));
+        _menu.Items.Add("鼠标穿透", null, (_, _) => Post("click-through", toggleClickThrough));
         _menu.Items.Add(new Forms.ToolStripSeparator());
-        _menu.Items.Add("设置…", null, (_, _) => Post(showSettings));
-        _menu.Items.Add("退出", null, (_, _) => Post(exit));
+        _menu.Items.Add("设置…", null, (_, _) => Post("settings", showSettings));
+        _menu.Items.Add("退出", null, (_, _) => Post("exit", exit));
 
         _icon = new Forms.NotifyIcon
         {
@@ -34,7 +34,7 @@ internal sealed class TrayService : IDisposable
             ContextMenuStrip = _menu,
             Visible = true
         };
-        _icon.DoubleClick += (_, _) => Post(showReader);
+        _icon.DoubleClick += (_, _) => Post("show-reader", showReader);
     }
 
     internal void SetEnabled(bool enabled)
@@ -48,15 +48,16 @@ internal sealed class TrayService : IDisposable
         }
     }
 
-    private void Post(Action action)
+    private void Post(string command, Action action)
     {
         try
         {
+            AfterglowReader.App.LogDiagnostic("Tray", $"{command} dispatched");
             _dispatch(action);
         }
         catch (Exception exception)
         {
-            AfterglowReader.App.LogDiagnostic("Tray", $"dispatch failed: {exception.Message}");
+            AfterglowReader.App.LogDiagnostic("Tray", $"{command} dispatch failed: {exception}");
         }
     }
 
