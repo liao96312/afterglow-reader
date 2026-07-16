@@ -533,6 +533,18 @@ public partial class MainWindow : Window
             App.LogDiagnostic("Books", $"open failed: {exception.Message}");
             return false;
         }
+        catch (UnauthorizedAccessException exception)
+        {
+            App.LogDiagnostic("Books", $"open denied: {exception}");
+            ShowStatus("没有权限读取这本书。", hideAfterMilliseconds: 4_000);
+            return false;
+        }
+        catch (IOException exception)
+        {
+            App.LogDiagnostic("Books", $"open I/O failed: {exception}");
+            ShowStatus("书籍文件无法读取，可能已损坏或正在被占用。", hideAfterMilliseconds: 4_000);
+            return false;
+        }
         catch (Exception exception)
         {
             App.LogDiagnostic("Books", $"open failed: {exception}");
