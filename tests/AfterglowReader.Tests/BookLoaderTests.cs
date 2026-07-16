@@ -210,6 +210,28 @@ public sealed class BookLoaderTests
     }
 
     [Fact]
+    public async Task KeepsProgressIndependentForMultipleBooks()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-books-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new ReaderStateStore(root);
+            await store.SaveProgressAsync([
+                new BookProgress("first.txt", "ch-1", 10, DateTimeOffset.UtcNow),
+                new BookProgress("second.txt", "ch-8", 80, DateTimeOffset.UtcNow)
+            ]);
+
+            var progress = await store.LoadProgressAsync();
+            Assert.Equal("ch-1", progress.Single(item => item.Path == "first.txt").ParagraphId);
+            Assert.Equal("ch-8", progress.Single(item => item.Path == "second.txt").ParagraphId);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task LoadsLegacyStateAndWritesVersionedEnvelope()
     {
         var root = Path.Combine(Path.GetTempPath(), $"afterglow-state-schema-{Guid.NewGuid():N}");
