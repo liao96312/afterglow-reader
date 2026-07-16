@@ -129,9 +129,17 @@ public partial class MainWindow : Window
             await RestoreLastBookAsync();
             TryFocusReaderIfRequested();
         }
+        catch (WebView2RuntimeNotFoundException exception)
+        {
+            App.LogDiagnostic("WebView2", $"runtime missing: {exception}");
+            StatusText.Text = "未检测到 WebView2 Runtime，请安装 Evergreen Runtime 后重启阅读器。";
+            StatusPanel.Visibility = Visibility.Visible;
+        }
         catch (Exception exception)
         {
+            App.LogDiagnostic("WebView2", $"initialization failed: {exception}");
             StatusText.Text = $"WebView2 初始化失败：{exception.Message}";
+            StatusPanel.Visibility = Visibility.Visible;
         }
     }
 

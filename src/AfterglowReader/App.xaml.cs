@@ -20,6 +20,7 @@ public partial class App : System.Windows.Application
     {
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
     }
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)
@@ -58,6 +59,12 @@ public partial class App : System.Windows.Application
         {
             Log("AppDomain", exception);
         }
+    }
+
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        Log("TaskScheduler", e.Exception);
+        e.SetObserved();
     }
 
     private static void Log(string source, Exception exception)
