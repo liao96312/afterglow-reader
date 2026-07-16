@@ -23,45 +23,110 @@ internal sealed record SettingsChangedMessage(string? FontFamily, double FontSiz
 
 internal static class ReaderBridge
 {
+    private const int MaxStringLength = 256;
+
     public static ReaderMessage? Parse(string json)
     {
-        using var document = JsonDocument.Parse(json);
-        var root = document.RootElement;
-        if (!root.TryGetProperty("type", out var typeElement))
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !TryGetString(root, "type", out var type))
+            {
+                return null;
+            }
+
+            return type switch
+            {
+                "readerReady" => new ReaderReadyMessage(),
+                "requestWindow" when TryGetDirection(root, out var direction)
+                    && TryGetFiniteDouble(root, "anchorOffset", out var anchorOffset)
+                    && TryGetOptionalString(root, "anchorId", out var anchorId)
+                    => new WindowRequestMessage(direction, anchorId, anchorOffset),
+                "progressChanged" when TryGetOptionalString(root, "paragraphId", out var paragraphId)
+                    && TryGetFiniteDouble(root, "offset", out var offset)
+                    && TryGetInt64(root, "sequence", out var sequence)
+                    && sequence >= 0
+                    => new ProgressChangedMessage(paragraphId, offset, sequence),
+                "selectChapter" when TryGetString(root, "chapterId", out var chapterId)
+                    => new ChapterSelectionMessage(chapterId),
+                "openFile" => new OpenFileMessage(),
+                "beginWindowDrag" => new WindowDragMessage(),
+                "beginWindowResize" when TryGetString(root, "edge", out var edge)
+                    && edge is "top" or "right" or "bottom" or "left" or "topLeft" or "topRight" or "bottomLeft" or "bottomRight"
+                    => new WindowResizeMessage(edge),
+                "readerPointerEntered" => new ReaderPointerEnteredMessage(),
+                "settingsChanged" when TryGetString(root, "fontFamily", out var fontFamily)
+                    && TryGetFiniteDouble(root, "fontSize", out var fontSize)
+                    && TryGetFiniteDouble(root, "lineHeight", out var lineHeight)
+                    && TryGetFiniteDouble(root, "opacity", out var opacity)
+                    && TryGetFiniteDouble(root, "scrollPixelsPerSecond", out var speed)
+                    => new SettingsChangedMessage(fontFamily, fontSize, lineHeight, opacity, speed),
+                _ => null
+            };
+        }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         {
             return null;
         }
-
-        return typeElement.GetString() switch
-        {
-            "readerReady" => new ReaderReadyMessage(),
-            "requestWindow" => new WindowRequestMessage(
-                GetInt32(root, "direction"),
-                GetString(root, "anchorId"),
-                GetDouble(root, "anchorOffset")),
-            "progressChanged" => new ProgressChangedMessage(
-                GetString(root, "paragraphId"),
-                GetDouble(root, "offset"),
-                GetInt64(root, "sequence")),
-            "selectChapter" => new ChapterSelectionMessage(GetString(root, "chapterId")),
-            "openFile" => new OpenFileMessage(),
-            "beginWindowDrag" => new WindowDragMessage(),
-            "beginWindowResize" => new WindowResizeMessage(GetString(root, "edge")),
-            "readerPointerEntered" => new ReaderPointerEnteredMessage(),
-            "settingsChanged" => new SettingsChangedMessage(GetString(root, "fontFamily"), GetDouble(root, "fontSize"), GetDouble(root, "lineHeight"), GetDouble(root, "opacity"), GetDouble(root, "scrollPixelsPerSecond")),
-            _ => null
-        };
     }
 
-    private static string? GetString(JsonElement root, string propertyName)
-        => root.TryGetProperty(propertyName, out var element) ? element.GetString() : null;
+    private static bool TryGetString(JsonElement root, string propertyName, out string value)
+    {
+        value = string.Empty;
+        if (!root.TryGetProperty(propertyName, out var element)
+            || element.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
 
-    private static int GetInt32(JsonElement root, string propertyName)
-        => root.TryGetProperty(propertyName, out var element) && element.TryGetInt32(out var value) ? value : 0;
+        var parsed = element.GetString();
+        if (string.IsNullOrWhiteSpace(parsed) || parsed.Length > MaxStringLength)
+        {
+            return false;
+        }
 
-    private static long GetInt64(JsonElement root, string propertyName)
-        => root.TryGetProperty(propertyName, out var element) && element.TryGetInt64(out var value) ? value : 0;
+        value = parsed;
+        return true;
+    }
 
-    private static double GetDouble(JsonElement root, string propertyName)
-        => root.TryGetProperty(propertyName, out var element) && element.TryGetDouble(out var value) ? value : 0;
+    private static bool TryGetOptionalString(JsonElement root, string propertyName, out string? value)
+    {
+        value = null;
+        if (!root.TryGetProperty(propertyName, out var element) || element.ValueKind == JsonValueKind.Null)
+        {
+            return true;
+        }
+
+        if (element.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        value = element.GetString();
+        return value is null || value.Length <= MaxStringLength;
+    }
+
+    private static bool TryGetDirection(JsonElement root, out int value)
+    {
+        value = 0;
+        return root.TryGetProperty("direction", out var element)
+            && element.TryGetInt32(out value)
+            && value is -1 or 1;
+    }
+
+    private static bool TryGetFiniteDouble(JsonElement root, string propertyName, out double value)
+    {
+        value = 0;
+        return root.TryGetProperty(propertyName, out var element)
+            && element.TryGetDouble(out value)
+            && double.IsFinite(value);
+    }
+
+    private static bool TryGetInt64(JsonElement root, string propertyName, out long value)
+    {
+        value = 0;
+        return root.TryGetProperty(propertyName, out var element) && element.TryGetInt64(out value);
+    }
 }

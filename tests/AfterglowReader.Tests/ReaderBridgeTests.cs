@@ -30,4 +30,23 @@ public sealed class ReaderBridgeTests
         Assert.Equal(12.5, progress.Offset);
         Assert.Equal(42, progress.Sequence);
     }
+
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"type\":\"requestWindow\",\"direction\":0,\"anchorOffset\":0}")]
+    [InlineData("{\"type\":\"requestWindow\",\"direction\":1,\"anchorOffset\":\"bad\"}")]
+    [InlineData("{\"type\":\"beginWindowResize\",\"edge\":\"center\"}")]
+    [InlineData("{\"type\":\"progressChanged\",\"paragraphId\":\"p\",\"offset\":1e999,\"sequence\":1}")]
+    public void Parse_InvalidMessage_IsIgnored(string json)
+    {
+        Assert.Null(ReaderBridge.Parse(json));
+    }
+
+    [Fact]
+    public void Parse_RejectsOversizedIdentifiers()
+    {
+        var oversized = new string('x', 257);
+
+        Assert.Null(ReaderBridge.Parse($"{{\"type\":\"selectChapter\",\"chapterId\":\"{oversized}\"}}"));
+    }
 }
