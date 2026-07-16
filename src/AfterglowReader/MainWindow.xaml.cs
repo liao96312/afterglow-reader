@@ -47,6 +47,8 @@ public partial class MainWindow : Window
     private Task? _progressSaveTask;
     private CancellationTokenSource? _bookLoadCts;
     private long _bookSessionGeneration;
+    private int _webViewRecoveryUsed;
+    private TaskCompletionSource<bool>? _recoveryReady;
     private Task? _shutdownTask;
     private bool _shutdownRequested;
     private bool _shutdownCompleted;
@@ -109,6 +111,7 @@ public partial class MainWindow : Window
             ReaderView.CoreWebView2.NewWindowRequested += (_, args) => args.Handled = true;
             ReaderView.CoreWebView2.DownloadStarting += (_, args) => args.Cancel = true;
             ReaderView.CoreWebView2.WebMessageReceived += OnWebMessageReceived;
+            ReaderView.CoreWebView2.ProcessFailed += OnWebViewProcessFailed;
             ReaderView.CoreWebView2.NavigationCompleted += (_, args) =>
             {
                 if (args.IsSuccess)
@@ -662,6 +665,7 @@ public partial class MainWindow : Window
 
         _hwndSource?.RemoveHook(WindowMessageHook);
         _statusHideTimer?.Stop();
+        _recoveryReady?.TrySetCanceled();
         ReaderView.Dispose();
         _progressSaveCts?.Dispose();
         _bookLoadCts?.Dispose();
@@ -717,6 +721,50 @@ public partial class MainWindow : Window
         args.Cancel = !IsReaderNavigation(args.Uri);
     }
 
+    private void OnWebViewProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs args)
+    {
+        App.LogDiagnostic("WebView2", $"process failed: kind={args.ProcessFailedKind}; reason={args.Reason}");
+        if (_shutdownRequested || Interlocked.Exchange(ref _webViewRecoveryUsed, 1) != 0)
+        {
+            ShowStatus("阅读视图异常，请重启阅读器。", 5000);
+            return;
+        }
+
+        _ = RecoverReaderViewAsync();
+    }
+
+    private async Task RecoverReaderViewAsync()
+    {
+        var currentPath = _currentBookPath;
+        try
+        {
+            _bookLoadCts?.Cancel();
+            await SaveProgressNowAsync();
+            if (_shutdownRequested || ReaderView.CoreWebView2 is null)
+            {
+                return;
+            }
+
+            var ready = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _recoveryReady = ready;
+            ReaderView.NavigateToString(ReaderAssetLoader.LoadHtml());
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            _recoveryReady = null;
+            await ApplyReaderSettingsAsync();
+            if (!string.IsNullOrWhiteSpace(currentPath))
+            {
+                await OpenBookAsync(currentPath, restoringLastBook: false);
+            }
+            ShowStatus("阅读视图已恢复。", 2500);
+        }
+        catch (Exception exception)
+        {
+            _recoveryReady = null;
+            App.LogDiagnostic("WebView2", $"recovery failed: {exception}");
+            ShowStatus("阅读视图恢复失败，请重启阅读器。", 5000);
+        }
+    }
+
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs args)
     {
         try
@@ -725,6 +773,7 @@ public partial class MainWindow : Window
             {
                 case ReaderReadyMessage:
                     _readerReady.TrySetResult(true);
+                    _recoveryReady?.TrySetResult(true);
                     App.LogDiagnostic("Reader", "readerReady");
                     StatusPanel.Visibility = Visibility.Collapsed;
                     break;
