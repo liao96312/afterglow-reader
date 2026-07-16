@@ -764,11 +764,16 @@ public partial class MainWindow : Window
             }
             else if (ReaderView.CoreWebView2 is not null)
             {
-                await ReaderView.CoreWebView2.ExecuteScriptAsync("window.windowRequestHandled?.();");
+                await ReaderView.CoreWebView2.ExecuteScriptAsync("window.windowRequestHandled?.(false);");
             }
         }
         catch (Exception exception)
         {
+            _session.MoveWindow(-Math.Sign(direction));
+            if (ReaderView.CoreWebView2 is not null)
+            {
+                await ReaderView.CoreWebView2.ExecuteScriptAsync("window.windowRequestHandled?.(true);");
+            }
             App.LogDiagnostic("Reader", $"window request failed: {exception.Message}");
         }
         finally

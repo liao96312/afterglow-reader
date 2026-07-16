@@ -19,6 +19,8 @@
   let autoSpeed = 40;
   let lastFrame = 0;
   let windowRequestPending = false;
+  let windowRequestDirection = 0;
+  let windowRequestCooldownDirection = 0;
   let progressTimer = 0;
   let progressSequence = 0;
   let dragState = null;
@@ -155,10 +157,23 @@
       scrollTo(0, 0);
       targetScroll = scrollY;
     }
+    const completedDirection = windowRequestDirection;
+    windowRequestDirection = 0;
     windowRequestPending = false;
+    windowRequestCooldownDirection = completedDirection;
   };
 
-  window.windowRequestHandled = () => { windowRequestPending = false; };
+  window.windowRequestHandled = (hasMore = true) => {
+    const completedDirection = windowRequestDirection;
+    windowRequestDirection = 0;
+    windowRequestPending = false;
+    windowRequestCooldownDirection = completedDirection;
+    if (!hasMore) {
+      windowRequestCooldownDirection = 0;
+      autoScroll = false;
+      targetScroll = scrollY;
+    }
+  };
 
   const anchorForWindowRequest = () => {
     const nodes = [...document.querySelectorAll('[data-paragraph-id]')];
@@ -172,6 +187,7 @@
   const requestWindow = (direction) => {
     if (windowRequestPending || !window.chrome?.webview) return;
     windowRequestPending = true;
+    windowRequestDirection = Math.sign(direction);
     const anchor = anchorForWindowRequest();
     window.chrome.webview.postMessage(JSON.stringify({ type: 'requestWindow', direction, anchorId: anchor.id, anchorOffset: anchor.offset }));
   };
@@ -197,10 +213,6 @@
     const maxStep = (autoScroll ? autoSpeed : 1600) * dt;
     const step = Math.sign(distance) * Math.min(Math.abs(distance) * Math.min(1, dt * 12), maxStep);
     if (Math.abs(step) > 0.1) scrollBy(0, step);
-    if (autoScroll && scrollY >= document.documentElement.scrollHeight - innerHeight - 1) {
-      autoScroll = false;
-      targetScroll = scrollY;
-    }
     if (autoScroll || Math.abs(targetScroll - scrollY) > 0.5) raf = requestAnimationFrame(animate);
     else raf = 0;
   };
@@ -278,8 +290,16 @@
   addEventListener('scroll', () => {
     updateActiveFromScroll();
     if (!progressTimer) progressTimer = setTimeout(publishProgress, 250);
-    if (innerHeight + scrollY > document.documentElement.scrollHeight - 500) requestWindow(1);
-    if (scrollY < 500) requestWindow(-1);
+    if (innerHeight + scrollY > document.documentElement.scrollHeight - 500) {
+      requestWindow(1);
+    }
+    if (scrollY < 500 && !windowRequestPending) {
+      if (windowRequestCooldownDirection === 1) {
+        windowRequestCooldownDirection = 0;
+      } else {
+        requestWindow(-1);
+      }
+    }
   }, { passive: true });
 
   keepToolbarVisible();
