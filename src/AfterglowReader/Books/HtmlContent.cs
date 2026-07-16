@@ -28,8 +28,8 @@ internal static partial class HtmlContent
             .Select((item, index) =>
             {
                 var plainText = WebUtility.HtmlDecode(StripTags(item.Inner)).Trim();
-                var html = SanitizeInline(item.Inner, item.Tag);
-                return plainText.Length == 0 ? null : new BookParagraph($"{idPrefix}-{index}", html, plainText);
+                // ponytail: encode imported HTML as text; add a fixed inline allowlist only when formatting is required.
+                return plainText.Length == 0 ? null : CreateParagraph($"{idPrefix}-{index}", plainText);
             })
             .Where(paragraph => paragraph is not null)
             .Cast<BookParagraph>()
