@@ -11,6 +11,20 @@ namespace AfterglowReader.Tests;
 public sealed class BookLoaderTests
 {
     [Fact]
+    public void ImportedHtmlIsRenderedAsEncodedText()
+    {
+        var paragraphs = HtmlContent.ToParagraphs(
+            "<p onclick=\"alert(1)\">正文<script>alert(2)</script><img src=\"x\"></p>",
+            "ch-0");
+
+        var paragraph = Assert.Single(paragraphs);
+        Assert.Equal("正文", paragraph.PlainText);
+        Assert.DoesNotContain("<script", paragraph.Html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("onclick", paragraph.Html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<img", paragraph.Html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task LoadsUtf8TextAndCreatesStableParagraphIds()
     {
         var path = CreateTempFile("小说.txt", "第一章\n\n第一段\n第二段\n\n第二章\n第三段");
