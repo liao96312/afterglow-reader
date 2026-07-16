@@ -46,6 +46,7 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _progressSaveCts;
     private Task? _progressSaveTask;
     private CancellationTokenSource? _bookLoadCts;
+    private long _bookSessionGeneration;
     private Task? _shutdownTask;
     private bool _shutdownRequested;
     private bool _shutdownCompleted;
@@ -425,6 +426,7 @@ public partial class MainWindow : Window
         }
 
         var loadCts = new CancellationTokenSource();
+        var generation = Interlocked.Increment(ref _bookSessionGeneration);
         var previousLoadCts = Interlocked.Exchange(ref _bookLoadCts, loadCts);
         previousLoadCts?.Cancel();
         try
@@ -439,24 +441,42 @@ public partial class MainWindow : Window
                 : $"正在读取 {Path.GetFileName(normalizedPath)}…");
             var book = await BookLoader.LoadAsync(normalizedPath, loadCts.Token);
             loadCts.Token.ThrowIfCancellationRequested();
-            _currentBookPath = normalizedPath;
-            _session = new ReaderSession(book);
-            var saved = _progress.FirstOrDefault(item => string.Equals(item.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
-            if (_session.RestoreToParagraph(saved?.ParagraphId))
+            await _renderGate.WaitAsync(loadCts.Token);
+            try
             {
-                _lastAnchorId = saved?.ParagraphId;
-                _lastAnchorOffset = saved?.ParagraphOffset ?? 0;
+                if (generation != Volatile.Read(ref _bookSessionGeneration))
+                {
+                    return false;
+                }
+
+                _currentBookPath = normalizedPath;
+                _session = new ReaderSession(book);
+                var saved = _progress.FirstOrDefault(item => string.Equals(item.Path, normalizedPath, StringComparison.OrdinalIgnoreCase));
+                if (_session.RestoreToParagraph(saved?.ParagraphId))
+                {
+                    _lastAnchorId = saved?.ParagraphId;
+                    _lastAnchorOffset = saved?.ParagraphOffset ?? 0;
+                }
+                else
+                {
+                    _lastAnchorId = null;
+                    _lastAnchorOffset = 0;
+                }
+
+                _selectedChapterId = _session.GetChapterIdForParagraph(saved?.ParagraphId)
+                    ?? _session.CurrentWindow.Chapters.FirstOrDefault()?.Id;
+                await RenderChapterIndexAsync(book);
+                await RenderWindowAsync(_session.CurrentWindow, _lastAnchorId, _lastAnchorOffset, _selectedChapterId);
             }
-            else
+            finally
             {
-                _lastAnchorId = null;
-                _lastAnchorOffset = 0;
+                _renderGate.Release();
             }
 
-            _selectedChapterId = _session.GetChapterIdForParagraph(saved?.ParagraphId)
-                ?? _session.CurrentWindow.Chapters.FirstOrDefault()?.Id;
-            await RenderChapterIndexAsync(book);
-            await RenderWindowAsync(_session.CurrentWindow, _lastAnchorId, _lastAnchorOffset, _selectedChapterId);
+            if (generation != Volatile.Read(ref _bookSessionGeneration) || loadCts.IsCancellationRequested)
+            {
+                return false;
+            }
 
             _settings = _settings with { LastBookPath = normalizedPath };
             await SaveWindowSettingsAsync();
