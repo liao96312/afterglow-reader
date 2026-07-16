@@ -52,6 +52,7 @@ public partial class MainWindow : Window
     private Task? _shutdownTask;
     private bool _shutdownRequested;
     private bool _shutdownCompleted;
+    private bool _fileDialogOpen;
     private ReaderSession? _session;
     private string? _currentBookPath;
     private string? _selectedChapterId;
@@ -397,8 +398,20 @@ public partial class MainWindow : Window
     private void OpenFilePlaceholder(object? sender, RoutedEventArgs e)
         => OpenFilePlaceholder();
 
-    private async void OpenFilePlaceholder()
+    private void OpenFilePlaceholder()
+        => _ = OpenFilePlaceholderAsync();
+
+    private async Task OpenFilePlaceholderAsync()
     {
+        if (_fileDialogOpen || _shutdownRequested)
+        {
+            return;
+        }
+
+        _fileDialogOpen = true;
+        App.LogDiagnostic("Tray", "open-book started");
+        try
+        {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
             Filter = "电子书|*.txt;*.epub;*.mobi|所有文件|*.*",
@@ -407,6 +420,17 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             await OpenBookAsync(dialog.FileName, restoringLastBook: false);
+        }
+            App.LogDiagnostic("Tray", "open-book completed");
+        }
+        catch (Exception exception)
+        {
+            App.LogDiagnostic("Tray", $"open-book failed: {exception}");
+            ShowStatus("打开书籍失败，请重试。", 4000);
+        }
+        finally
+        {
+            _fileDialogOpen = false;
         }
     }
 
