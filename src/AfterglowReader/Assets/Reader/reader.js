@@ -286,10 +286,26 @@
   addEventListener('pointermove', keepToolbarVisible, { passive: true });
 
   addEventListener('keydown', (event) => {
-    if (!autoScroll || (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName))) return;
-    if (event.key === 'ArrowUp') { autoSpeed = Math.max(10, autoSpeed - 10); event.preventDefault(); }
-    if (event.key === 'ArrowDown') { autoSpeed = Math.min(400, autoSpeed + 10); event.preventDefault(); }
-    if (event.key === ' ') { autoScroll = false; targetScroll = scrollY; event.preventDefault(); }
+    if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
+    if (autoScroll) {
+      if (event.key === 'ArrowUp') { autoSpeed = Math.max(10, autoSpeed - 10); event.preventDefault(); }
+      if (event.key === 'ArrowDown') { autoSpeed = Math.min(400, autoSpeed + 10); event.preventDefault(); }
+      if (event.key === ' ') { autoScroll = false; targetScroll = scrollY; event.preventDefault(); }
+      return;
+    }
+
+    const distance = event.key === 'PageUp' || event.key === 'PageDown'
+      ? innerHeight * 0.9
+      : 80;
+    if (event.key === 'ArrowUp' || event.key === 'PageUp') {
+      targetScroll = clampTarget(scrollY - distance);
+      startAnimation();
+      event.preventDefault();
+    } else if (event.key === 'ArrowDown' || event.key === 'PageDown') {
+      targetScroll = clampTarget(scrollY + distance);
+      startAnimation();
+      event.preventDefault();
+    }
   });
 
   addEventListener('scroll', () => {
