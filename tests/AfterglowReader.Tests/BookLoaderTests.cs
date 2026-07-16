@@ -269,18 +269,16 @@ public sealed class BookLoaderTests
     }
 
     [Fact]
-    public void ReaderSessionKeepsOnlyThreeChaptersInTheRenderWindow()
+    public void ReaderSessionRendersTheFullBookForContinuousReading()
     {
         var chapters = Enumerable.Range(0, 5)
             .Select(index => new BookChapter($"ch-{index}", $"Chapter {index}", [HtmlContentForTest(index)]))
             .ToArray();
         var session = new ReaderSession(new BookDocument("book.txt", "Book", chapters));
 
-        Assert.Equal(["ch-0", "ch-1", "ch-2"], session.CurrentWindow.Chapters.Select(chapter => chapter.Id));
-        Assert.True(session.MoveWindow(1));
-        Assert.Equal(["ch-1", "ch-2", "ch-3"], session.CurrentWindow.Chapters.Select(chapter => chapter.Id));
-        Assert.True(session.MoveWindow(-1));
-        Assert.Equal(["ch-0", "ch-1", "ch-2"], session.CurrentWindow.Chapters.Select(chapter => chapter.Id));
+        Assert.Equal(5, session.CurrentWindow.Chapters.Count);
+        Assert.False(session.MoveWindow(1));
+        Assert.False(session.MoveWindow(-1));
         Assert.True(session.RestoreToParagraph("p-4"));
         Assert.Equal(2, session.WindowStart);
         Assert.False(session.RestoreToParagraph("missing"));

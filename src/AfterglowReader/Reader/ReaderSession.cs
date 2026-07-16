@@ -20,25 +20,11 @@ public sealed class ReaderSession
     public int WindowStart { get; private set; }
 
     public BookDocument CurrentWindow
-        => new(Book.SourcePath, Book.Title, Book.Chapters.Skip(WindowStart).Take(WindowSize).ToArray());
+        // ponytail: full-book DOM favors reliable reading; restore paging only after profiling proves it necessary.
+        => Book;
 
     public bool MoveWindow(int direction)
-    {
-        if (direction == 0 || Book.Chapters.Count <= WindowSize)
-        {
-            return false;
-        }
-
-        var maxStart = Math.Max(0, Book.Chapters.Count - WindowSize);
-        var next = Math.Clamp(WindowStart + Math.Sign(direction), 0, maxStart);
-        if (next == WindowStart)
-        {
-            return false;
-        }
-
-        WindowStart = next;
-        return true;
-    }
+        => false;
 
     public bool RestoreToParagraph(string? paragraphId)
     {

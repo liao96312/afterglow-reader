@@ -213,6 +213,10 @@
     const maxStep = (autoScroll ? autoSpeed : 1600) * dt;
     const step = Math.sign(distance) * Math.min(Math.abs(distance) * Math.min(1, dt * 12), maxStep);
     if (Math.abs(step) > 0.1) scrollBy(0, step);
+    if (autoScroll && scrollY >= document.documentElement.scrollHeight - innerHeight - 1) {
+      autoScroll = false;
+      targetScroll = scrollY;
+    }
     if (autoScroll || Math.abs(targetScroll - scrollY) > 0.5) raf = requestAnimationFrame(animate);
     else raf = 0;
   };
@@ -290,16 +294,6 @@
   addEventListener('scroll', () => {
     updateActiveFromScroll();
     if (!progressTimer) progressTimer = setTimeout(publishProgress, 250);
-    if (innerHeight + scrollY > document.documentElement.scrollHeight - 500) {
-      requestWindow(1);
-    }
-    if (scrollY < 500 && !windowRequestPending) {
-      if (windowRequestCooldownDirection === 1) {
-        windowRequestCooldownDirection = 0;
-      } else {
-        requestWindow(-1);
-      }
-    }
   }, { passive: true });
 
   keepToolbarVisible();
