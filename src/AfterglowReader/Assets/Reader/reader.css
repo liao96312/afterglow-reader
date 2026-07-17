@@ -22,14 +22,14 @@ body.toolbar-hidden #toolbar { opacity: 0; transform: translateY(-8px); pointer-
 #toolbar button { border: 0; border-radius: var(--radius); min-height: 32px; padding: 6px 10px; color: var(--muted); background: var(--control); cursor: pointer; }
 #toolbar button:hover { background: var(--control-hover); }
 #toolbar button.active { color: #fff; background: var(--accent); }
-#settings-panel { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 8px 16px; color: var(--muted); background: var(--surface); font-size: 13px; }
+#settings-panel { position: fixed; z-index: 5; top: 64px; left: 0; right: 0; display: flex; flex-wrap: wrap; gap: 10px 16px; max-height: calc(100vh - 128px); overflow: auto; box-sizing: border-box; padding: 8px 16px; color: var(--muted); background: var(--surface); box-shadow: 0 8px 24px #0002; font-size: 13px; }
 #settings-panel.hidden { display: none; }
 #settings-panel label { display: inline-flex; align-items: center; gap: 6px; }
 #settings-panel input { width: 90px; }
 #reader-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 16px; align-items: start; }
 #directory { min-width: 0; }
 #directory { min-width: 0; overflow: hidden; }
-#chapters { position: sticky; top: 64px; align-self: start; display: grid; gap: 6px; max-height: calc(100vh - 128px); overflow: auto; padding: 8px 0 0 16px; }
+#chapters { position: fixed; z-index: 5; top: 64px; left: 16px; display: grid; gap: 6px; width: 180px; max-height: calc(100vh - 128px); overflow: auto; padding: 8px 8px 8px 16px; border-radius: var(--radius); background: var(--surface); box-shadow: 0 8px 24px #0002; }
 #chapters { scrollbar-width: none; -ms-overflow-style: none; }
 #chapters::-webkit-scrollbar { width: 0; height: 0; display: none; }
 #chapters.hidden { display: none; }
@@ -58,6 +58,7 @@ html.dragging, html.dragging * { cursor: grabbing !important; user-select: none 
 @media (max-width: 560px) {
   #reader { padding-top: 56px; }
   #toolbar { min-height: 44px; padding: 6px 12px; }
+  #settings-panel { top: 56px; max-height: calc(100vh - 112px); padding-inline: 12px; }
   #app-label { font-size: 12px; }
   #reader-body { display: block; }
   #directory { position: relative; }
@@ -68,5 +69,6 @@ html.dragging, html.dragging * { cursor: grabbing !important; user-select: none 
 @media (max-height: 320px) {
   #reader { padding-top: 44px; }
   #toolbar { min-height: 36px; padding-block: 3px; }
+  #settings-panel { top: 44px; max-height: calc(100vh - 88px); }
   article { padding-top: 10px; }
 }

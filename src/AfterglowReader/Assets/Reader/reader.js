@@ -13,6 +13,7 @@
   const scrollSpeed = document.getElementById('scroll-speed');
   const appLabel = document.getElementById('app-label');
   const toast = document.getElementById('toast');
+  const toolbar = document.getElementById('toolbar');
   const completion = document.getElementById('book-complete');
   const completionOpen = document.getElementById('complete-open');
   const completionDirectory = document.getElementById('complete-directory');
@@ -32,6 +33,9 @@
   let toolbarHideTimer = 0;
   let readerInteractionRequested = false;
   let hasBook = false;
+  let completionArmed = false;
+  let currentBookKey = '';
+  let lastScrollY = 0;
 
   const showToast = (message) => {
     if (!toast) return;
@@ -41,39 +45,65 @@
     toastTimer = window.setTimeout(() => { toast.hidden = true; }, 3000);
   };
 
-  const keepToolbarVisible = () => {
+  const showToolbar = () => {
     document.body.classList.remove('toolbar-hidden');
     window.clearTimeout(toolbarHideTimer);
-    toolbarHideTimer = window.setTimeout(() => {
-      if (!chapters.classList.contains('hidden')) return;
-      document.body.classList.add('toolbar-hidden');
-    }, 4000);
   };
 
+  const hideToolbar = () => {
+    document.body.classList.add('toolbar-hidden');
+    window.clearTimeout(toolbarHideTimer);
+  };
+
+  const scheduleToolbarHide = () => {
+    window.clearTimeout(toolbarHideTimer);
+    toolbarHideTimer = window.setTimeout(hideToolbar, 2000);
+  };
+
+  const setAutoScrollState = (active) => {
+    autoScroll = active;
+    autoScrollButton.classList.toggle('active', autoScroll);
+    autoScrollButton.textContent = autoScroll ? '暂停滚动' : '自动滚动';
+  };
+
+  toolbar.addEventListener('pointerenter', showToolbar);
+  toolbar.addEventListener('pointerleave', scheduleToolbarHide);
+  settingsPanel.addEventListener('pointerenter', showToolbar);
+  settingsPanel.addEventListener('pointerleave', scheduleToolbarHide);
+  chapters.addEventListener('pointerenter', showToolbar);
+  chapters.addEventListener('pointerleave', scheduleToolbarHide);
+  addEventListener('dblclick', (event) => {
+    if (event.clientY > 64 || event.target.closest('button, #app-label, #settings-panel, #chapters, .window-resize-handle')) return;
+    showToolbar();
+  });
+
   openFile.onclick = () => {
-    keepToolbarVisible();
+    showToolbar();
+    completion.classList.add('hidden');
+    showToast('正在打开文件…');
     window.chrome?.webview?.postMessage(JSON.stringify({ type: 'openFile' }));
   };
   completionOpen.onclick = () => openFile.click();
   completionDirectory.onclick = () => {
     chapters.classList.remove('hidden');
-    keepToolbarVisible();
+    showToolbar();
   };
   completionRestart.onclick = () => {
     completion.classList.add('hidden');
+    completionArmed = false;
     scrollTo(0, 0);
     targetScroll = 0;
-    keepToolbarVisible();
+    showToolbar();
   };
   directoryToggle.onclick = () => {
     chapters.classList.toggle('hidden');
-    keepToolbarVisible();
+    showToolbar();
   };
   const publishSettings = () => {
     window.chrome?.webview?.postMessage(JSON.stringify({ type: 'settingsChanged', fontFamily: fontFamily.value, fontSize: Number(fontSize.value), lineHeight: Number(lineHeight.value), opacity: Number(opacity.value), scrollPixelsPerSecond: Number(scrollSpeed.value) }));
   };
-  window.openSettings = () => { settingsPanel.classList.remove('hidden'); keepToolbarVisible(); };
-  settingsToggle.onclick = () => { settingsPanel.classList.toggle('hidden'); keepToolbarVisible(); };
+  window.openSettings = () => { settingsPanel.classList.remove('hidden'); showToolbar(); };
+  settingsToggle.onclick = () => { settingsPanel.classList.toggle('hidden'); showToolbar(); };
   [fontFamily, fontSize, lineHeight, opacity, scrollSpeed].forEach(control => control.addEventListener('input', publishSettings));
   window.applyReaderSettings = (settings) => {
     document.documentElement.style.setProperty('--font-family', settings.fontFamily || 'Microsoft YaHei');
@@ -83,8 +113,13 @@
     autoSpeed = settings.scrollPixelsPerSecond || 220;
   };
   autoScrollButton.onclick = () => {
+    if (!autoScroll && scrollY >= Math.max(0, document.documentElement.scrollHeight - innerHeight - 2)) {
+      showToast('已经到达书末');
+      setAutoScrollState(false);
+      return;
+    }
     window.toggleAutoScroll?.();
-    keepToolbarVisible();
+    showToolbar();
   };
 
   const postWindowAction = (message) => (event) => {
@@ -150,9 +185,15 @@
 
   window.renderWindow = (payload) => {
     const book = payload.book;
+    const bookKey = book.Path || book.Title || '';
+    const restoringSameBook = currentBookKey !== '' && currentBookKey === bookKey && Boolean(payload.anchorId);
+    lastScrollY = scrollY;
+    completionArmed = restoringSameBook;
+    completion.classList.add('hidden');
+    currentBookKey = bookKey;
+    setAutoScrollState(false);
     content.replaceChildren();
     hasBook = true;
-    completion.classList.add('hidden');
     const title = document.createElement('h1');
     title.textContent = book.Title;
     content.append(title);
@@ -176,7 +217,7 @@
       scrollTo(0, 0);
       targetScroll = scrollY;
     }
-    updateCompletion();
+    requestAnimationFrame(() => { lastScrollY = scrollY; });
     const completedDirection = windowRequestDirection;
     windowRequestDirection = 0;
     windowRequestPending = false;
@@ -190,7 +231,7 @@
     windowRequestCooldownDirection = completedDirection;
     if (!hasMore) {
       windowRequestCooldownDirection = 0;
-      autoScroll = false;
+      setAutoScrollState(false);
       targetScroll = scrollY;
     }
   };
@@ -225,7 +266,10 @@
   };
 
   const updateCompletion = () => {
-    if (!hasBook) return;
+    if (!hasBook || !completionArmed) {
+      completion.classList.add('hidden');
+      return;
+    }
     const bottom = document.documentElement.scrollHeight - innerHeight;
     completion.classList.toggle('hidden', scrollY < Math.max(0, bottom - 2));
   };
@@ -240,7 +284,7 @@
     const step = Math.sign(distance) * Math.min(Math.abs(distance) * Math.min(1, dt * 12), maxStep);
     if (Math.abs(step) > 0.1) scrollBy(0, step);
     if (autoScroll && scrollY >= document.documentElement.scrollHeight - innerHeight - 1) {
-      autoScroll = false;
+      setAutoScrollState(false);
       targetScroll = scrollY;
     }
     if (autoScroll || Math.abs(targetScroll - scrollY) > 0.5) raf = requestAnimationFrame(animate);
@@ -255,10 +299,8 @@
   };
 
   window.toggleAutoScroll = () => {
-    autoScroll = !autoScroll;
+    setAutoScrollState(!autoScroll);
     targetScroll = scrollY;
-    autoScrollButton.classList.toggle('active', autoScroll);
-    autoScrollButton.textContent = autoScroll ? '暂停滚动' : '自动滚动';
     if (autoScroll) startAnimation();
   };
 
@@ -315,7 +357,7 @@
     if (autoScroll) {
       if (event.key === 'ArrowUp') { autoSpeed = Math.max(10, autoSpeed - 10); event.preventDefault(); }
       if (event.key === 'ArrowDown') { autoSpeed = Math.min(400, autoSpeed + 10); event.preventDefault(); }
-      if (event.key === ' ') { autoScroll = false; targetScroll = scrollY; event.preventDefault(); }
+      if (event.key === ' ') { setAutoScrollState(false); targetScroll = scrollY; event.preventDefault(); }
       return;
     }
 
@@ -335,10 +377,12 @@
 
   addEventListener('scroll', () => {
     updateActiveFromScroll();
+    if (scrollY > lastScrollY + 1) completionArmed = true;
+    lastScrollY = scrollY;
     updateCompletion();
     if (!progressTimer) progressTimer = setTimeout(publishProgress, 250);
   }, { passive: true });
 
-  keepToolbarVisible();
+  showToolbar();
   window.chrome?.webview?.postMessage(JSON.stringify({ type: 'readerReady' }));
 })();

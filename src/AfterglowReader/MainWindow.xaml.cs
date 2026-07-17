@@ -833,9 +833,11 @@ public partial class MainWindow : Window
                     RecordProgress(progress.ParagraphId, progress.Offset, progress.Sequence);
                     break;
                 case ChapterSelectionMessage chapter:
+                    App.LogDiagnostic("Reader", $"selectChapter requested: {chapter.ChapterId}");
                     _ = HandleChapterSelectionAsync(chapter.ChapterId);
                     break;
                 case OpenFileMessage:
+                    App.LogDiagnostic("Reader", "openFile requested");
                     OpenFilePlaceholder();
                     break;
                 case WindowDragMessage:
