@@ -334,7 +334,7 @@
     const dy = event.clientY - dragState.startY;
     if (!dragState.active && Math.hypot(dx, dy) < 6) return;
     dragState.active = true;
-    autoScroll = false;
+    setAutoScrollState(false);
     document.documentElement.classList.add('dragging');
     targetScroll = clampTarget(dragState.startScroll - dy);
     startAnimation();
@@ -350,7 +350,6 @@
 
   addEventListener('pointerup', finishDrag);
   addEventListener('pointercancel', finishDrag);
-  addEventListener('pointermove', keepToolbarVisible, { passive: true });
 
   addEventListener('keydown', (event) => {
     if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
