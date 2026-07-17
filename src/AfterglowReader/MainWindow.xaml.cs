@@ -65,6 +65,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         SourceInitialized += OnSourceInitialized;
         Loaded += OnLoaded;
+        Deactivated += OnDeactivated;
         Closing += OnClosing;
         Closed += OnClosed;
     }
@@ -317,6 +318,18 @@ public partial class MainWindow : Window
         TryFocusReaderIfRequested();
     }
 
+    private void OnDeactivated(object? sender, EventArgs e)
+    {
+        if (_isHidden || _clickThrough || _shutdownRequested)
+        {
+            return;
+        }
+
+        _readerInteractionState = ReaderInteractionState.VisiblePassive;
+        _pendingReaderInteractionFocus = false;
+        ResetReaderInteractionGate();
+    }
+
     private void TryFocusReaderIfRequested()
     {
         if (!_pendingReaderInteractionFocus
@@ -435,6 +448,11 @@ public partial class MainWindow : Window
             if (!_shutdownRequested)
             {
                 _tray?.SetEnabled(true);
+                _readerInteractionState = ReaderInteractionState.VisiblePassive;
+                var hwnd = new WindowInteropHelper(this).Handle;
+                _pendingReaderInteractionFocus = PlatformNativeWindow.IsCursorInsideWindow(hwnd);
+                ResetReaderInteractionGate();
+                TryFocusReaderIfRequested();
             }
         }
     }

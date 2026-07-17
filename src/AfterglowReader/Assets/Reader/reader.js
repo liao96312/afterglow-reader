@@ -54,6 +54,10 @@
     document.body.classList.add('toolbar-hidden');
     chapters.classList.add('hidden');
     settingsPanel.classList.add('hidden');
+    if (document.activeElement && document.activeElement !== document.body) {
+      content.tabIndex = -1;
+      content.focus({ preventScroll: true });
+    }
     window.clearTimeout(toolbarHideTimer);
   };
 
