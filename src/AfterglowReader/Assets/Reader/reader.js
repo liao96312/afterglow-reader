@@ -52,6 +52,8 @@
 
   const hideToolbar = () => {
     document.body.classList.add('toolbar-hidden');
+    chapters.classList.add('hidden');
+    settingsPanel.classList.add('hidden');
     window.clearTimeout(toolbarHideTimer);
   };
 
