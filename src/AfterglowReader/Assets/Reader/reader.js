@@ -13,6 +13,10 @@
   const scrollSpeed = document.getElementById('scroll-speed');
   const appLabel = document.getElementById('app-label');
   const toast = document.getElementById('toast');
+  const completion = document.getElementById('book-complete');
+  const completionOpen = document.getElementById('complete-open');
+  const completionDirectory = document.getElementById('complete-directory');
+  const completionRestart = document.getElementById('complete-restart');
   let raf = 0;
   let targetScroll = 0;
   let autoScroll = false;
@@ -27,6 +31,7 @@
   let toastTimer = 0;
   let toolbarHideTimer = 0;
   let readerInteractionRequested = false;
+  let hasBook = false;
 
   const showToast = (message) => {
     if (!toast) return;
@@ -48,6 +53,17 @@
   openFile.onclick = () => {
     keepToolbarVisible();
     window.chrome?.webview?.postMessage(JSON.stringify({ type: 'openFile' }));
+  };
+  completionOpen.onclick = () => openFile.click();
+  completionDirectory.onclick = () => {
+    chapters.classList.remove('hidden');
+    keepToolbarVisible();
+  };
+  completionRestart.onclick = () => {
+    completion.classList.add('hidden');
+    scrollTo(0, 0);
+    targetScroll = 0;
+    keepToolbarVisible();
   };
   directoryToggle.onclick = () => {
     chapters.classList.toggle('hidden');
@@ -135,6 +151,8 @@
   window.renderWindow = (payload) => {
     const book = payload.book;
     content.replaceChildren();
+    hasBook = true;
+    completion.classList.add('hidden');
     const title = document.createElement('h1');
     title.textContent = book.Title;
     content.append(title);
@@ -158,6 +176,7 @@
       scrollTo(0, 0);
       targetScroll = scrollY;
     }
+    updateCompletion();
     const completedDirection = windowRequestDirection;
     windowRequestDirection = 0;
     windowRequestPending = false;
@@ -203,6 +222,12 @@
   const updateActiveFromScroll = () => {
     const section = [...content.querySelectorAll('section')].find(node => node.getBoundingClientRect().bottom > 0);
     if (section) setActiveChapter(section.id);
+  };
+
+  const updateCompletion = () => {
+    if (!hasBook) return;
+    const bottom = document.documentElement.scrollHeight - innerHeight;
+    completion.classList.toggle('hidden', scrollY < Math.max(0, bottom - 2));
   };
 
   const clampTarget = (value) => Math.max(0, Math.min(value, document.documentElement.scrollHeight - innerHeight));
@@ -310,6 +335,7 @@
 
   addEventListener('scroll', () => {
     updateActiveFromScroll();
+    updateCompletion();
     if (!progressTimer) progressTimer = setTimeout(publishProgress, 250);
   }, { passive: true });
 
