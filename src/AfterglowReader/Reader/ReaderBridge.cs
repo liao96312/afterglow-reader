@@ -19,7 +19,7 @@ internal sealed record WindowDragMessage : ReaderMessage;
 internal sealed record WindowResizeMessage(string? Edge) : ReaderMessage;
 
 internal sealed record ReaderPointerEnteredMessage : ReaderMessage;
-internal sealed record SettingsChangedMessage(string? FontFamily, double FontSize, double LineHeight, double Opacity, double ScrollPixelsPerSecond) : ReaderMessage;
+internal sealed record SettingsChangedMessage(string? FontFamily, double FontSize, double LineHeight, double Opacity, double ScrollPixelsPerSecond, string FontWeight, string TextColor, double LetterSpacing, bool OpaquePage) : ReaderMessage;
 
 internal static class ReaderBridge
 {
@@ -62,7 +62,11 @@ internal static class ReaderBridge
                     && TryGetFiniteDouble(root, "lineHeight", out var lineHeight)
                     && TryGetFiniteDouble(root, "opacity", out var opacity)
                     && TryGetFiniteDouble(root, "scrollPixelsPerSecond", out var speed)
-                    => new SettingsChangedMessage(fontFamily, fontSize, lineHeight, opacity, speed),
+                    && TryGetString(root, "fontWeight", out var fontWeight)
+                    && TryGetString(root, "textColor", out var textColor)
+                    && TryGetFiniteDouble(root, "letterSpacing", out var letterSpacing)
+                    && TryGetBoolean(root, "opaquePage", out var opaquePage)
+                    => new SettingsChangedMessage(fontFamily, fontSize, lineHeight, opacity, speed, fontWeight, textColor, letterSpacing, opaquePage),
                 _ => null
             };
         }
@@ -128,5 +132,18 @@ internal static class ReaderBridge
     {
         value = 0;
         return root.TryGetProperty(propertyName, out var element) && element.TryGetInt64(out value);
+    }
+
+    private static bool TryGetBoolean(JsonElement root, string propertyName, out bool value)
+    {
+        value = false;
+        if (!root.TryGetProperty(propertyName, out var element)
+            || element.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+        {
+            return false;
+        }
+
+        value = element.GetBoolean();
+        return true;
     }
 }

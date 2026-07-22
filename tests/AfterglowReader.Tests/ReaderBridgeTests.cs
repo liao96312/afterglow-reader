@@ -49,4 +49,17 @@ public sealed class ReaderBridgeTests
 
         Assert.Null(ReaderBridge.Parse($"{{\"type\":\"selectChapter\",\"chapterId\":\"{oversized}\"}}"));
     }
+
+    [Fact]
+    public void Parse_SettingsChangedMessage_IncludesTypography()
+    {
+        var json = "{\"type\":\"settingsChanged\",\"fontFamily\":\"SimSun\",\"fontSize\":22,\"lineHeight\":1.8,\"opacity\":0.8,\"scrollPixelsPerSecond\":250,\"fontWeight\":\"600\",\"textColor\":\"#123456\",\"letterSpacing\":1.2,\"opaquePage\":true}";
+
+        var settings = Assert.IsType<SettingsChangedMessage>(ReaderBridge.Parse(json));
+
+        Assert.Equal("600", settings.FontWeight);
+        Assert.Equal("#123456", settings.TextColor);
+        Assert.Equal(1.2, settings.LetterSpacing);
+        Assert.True(settings.OpaquePage);
+    }
 }

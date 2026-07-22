@@ -1,5 +1,6 @@
 using System.Net;
 using System.IO;
+using System.IO.Compression;
 using System.Text;
 using System.Text.RegularExpressions;
 using Roler.Toolkit.File.Mobi;
@@ -40,22 +41,28 @@ public static partial class BookLoader
     public static async Task<BookDocument> LoadEpubAsync(string path, CancellationToken cancellationToken = default)
     {
         var bytes = await File.ReadAllBytesAsync(path, cancellationToken);
-        var book = await Task.Run(() =>
-        {
-            using var stream = new MemoryStream(bytes, writable: false);
-            return EpubReader.ReadBook(stream, EpubReaderOptionsPreset.RELAXED);
-        }, cancellationToken);
+        var book = await Task.Run(() => ReadEpub(bytes), cancellationToken);
+        var navigationTitles = GetUniqueNavigationTitles(book.Navigation ?? []);
         var chapters = new List<BookChapter>();
         for (var chapterIndex = 0; chapterIndex < book.ReadingOrder.Count; chapterIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var content = book.ReadingOrder[chapterIndex];
+            if (InjectedAdFileRegex().IsMatch(Path.GetFileName(content.FilePath)))
+            {
+                continue;
+            }
+
             var paragraphs = HtmlContent.ToParagraphs(content.Content, $"ch-{chapterIndex}");
             if (paragraphs.Count > 0)
             {
                 chapters.Add(new BookChapter(
                     $"ch-{chapterIndex}",
-                    GuessChapterTitle(content.Content, chapterIndex),
+                    GuessChapterTitle(
+                        content.Content,
+                        paragraphs,
+                        navigationTitles.GetValueOrDefault(NormalizeEpubPath(content.FilePath)),
+                        chapters.Count),
                     paragraphs));
             }
             cancellationToken.ThrowIfCancellationRequested();
@@ -67,6 +74,57 @@ public static partial class BookLoader
         }
 
         return new BookDocument(path, string.IsNullOrWhiteSpace(book.Title) ? Path.GetFileNameWithoutExtension(path) : book.Title, chapters);
+    }
+
+    private static EpubBook ReadEpub(byte[] bytes)
+    {
+        try
+        {
+            using var stream = new MemoryStream(bytes, writable: false);
+            return EpubReader.ReadBook(stream, EpubReaderOptionsPreset.RELAXED);
+        }
+        catch (Epub3NavException)
+        {
+            var fallback = TreatEpub3PackageAsEpub2(bytes);
+            if (fallback is null)
+            {
+                throw;
+            }
+
+            using var stream = new MemoryStream(fallback, writable: false);
+            return EpubReader.ReadBook(stream, EpubReaderOptionsPreset.RELAXED);
+        }
+    }
+
+    private static byte[]? TreatEpub3PackageAsEpub2(byte[] bytes)
+    {
+        using var sourceStream = new MemoryStream(bytes, writable: false);
+        using var sourceArchive = new ZipArchive(sourceStream, ZipArchiveMode.Read);
+        using var output = new MemoryStream();
+        var changed = false;
+        using (var targetArchive = new ZipArchive(output, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var sourceEntry in sourceArchive.Entries)
+            {
+                var compression = sourceEntry.FullName == "mimetype" ? CompressionLevel.NoCompression : CompressionLevel.Optimal;
+                var targetEntry = targetArchive.CreateEntry(sourceEntry.FullName, compression);
+                using var source = sourceEntry.Open();
+                using var target = targetEntry.Open();
+                if (!sourceEntry.FullName.EndsWith(".opf", StringComparison.OrdinalIgnoreCase))
+                {
+                    source.CopyTo(target);
+                    continue;
+                }
+
+                using var reader = new StreamReader(source, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
+                var package = reader.ReadToEnd();
+                var compatiblePackage = Epub3VersionRegex().Replace(package, "${1}2.0${2}", 1);
+                changed |= compatiblePackage != package;
+                target.Write(Encoding.UTF8.GetBytes(compatiblePackage));
+            }
+        }
+
+        return changed ? output.ToArray() : null;
     }
 
     public static async Task<BookDocument> LoadMobiAsync(string path, CancellationToken cancellationToken = default)
@@ -191,11 +249,52 @@ public static partial class BookLoader
         return chapters;
     }
 
-    private static string GuessChapterTitle(string html, int index)
+    private static string GuessChapterTitle(
+        string html,
+        IReadOnlyList<BookParagraph> paragraphs,
+        string? navigationTitle,
+        int fallbackIndex)
     {
         var match = HeadingRegex().Match(html);
-        return match.Success ? WebUtility.HtmlDecode(Regex.Replace(match.Groups[1].Value, "<[^>]+>", string.Empty)).Trim() : $"第 {index + 1} 章";
+        if (match.Success)
+        {
+            var heading = WebUtility.HtmlDecode(Regex.Replace(match.Groups[1].Value, "<[^>]+>", string.Empty)).Trim();
+            if (heading.Length > 0)
+            {
+                return heading;
+            }
+        }
+
+        var firstParagraph = paragraphs[0].PlainText.Trim();
+        if (firstParagraph.Length <= 40)
+        {
+            return firstParagraph;
+        }
+
+        return string.IsNullOrWhiteSpace(navigationTitle) ? $"未命名内容 {fallbackIndex + 1}" : navigationTitle.Trim();
     }
+
+    private static IReadOnlyDictionary<string, string> GetUniqueNavigationTitles(IEnumerable<EpubNavigationItem> navigation)
+        => FlattenNavigation(navigation)
+            .Where(item => item.Link is not null && !string.IsNullOrWhiteSpace(item.Title))
+            .GroupBy(item => NormalizeEpubPath(item.Link!.ContentFilePath), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.Single().Title, StringComparer.OrdinalIgnoreCase);
+
+    private static IEnumerable<EpubNavigationItem> FlattenNavigation(IEnumerable<EpubNavigationItem> navigation)
+    {
+        foreach (var item in navigation)
+        {
+            yield return item;
+            foreach (var nestedItem in FlattenNavigation(item.NestedItems))
+            {
+                yield return nestedItem;
+            }
+        }
+    }
+
+    private static string NormalizeEpubPath(string path)
+        => path.Replace('\\', '/').TrimStart('/');
 
     private static string DecodeText(byte[] bytes)
     {
@@ -230,4 +329,10 @@ public static partial class BookLoader
 
     [GeneratedRegex("<h[1-6]\\b[^>]*>(.*?)</h[1-6]>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex HeadingRegex();
+
+    [GeneratedRegex("(\\bversion\\s*=\\s*[\"'])3\\.0([\"'])", RegexOptions.IgnoreCase)]
+    private static partial Regex Epub3VersionRegex();
+
+    [GeneratedRegex("^ad_chapter\\d*\\.xhtml$", RegexOptions.IgnoreCase)]
+    private static partial Regex InjectedAdFileRegex();
 }

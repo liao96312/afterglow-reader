@@ -60,8 +60,10 @@ public sealed class BookLoaderTests
         }
     }
 
-    [Fact]
-    public async Task LoadsMinimalEpubReadingOrder()
+    [Theory]
+    [InlineData("2.0")]
+    [InlineData("3.0")]
+    public async Task LoadsMinimalEpubReadingOrder(string packageVersion)
     {
         var path = Path.Combine(Path.GetTempPath(), $"afterglow-{Guid.NewGuid():N}.epub");
         using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
@@ -73,21 +75,30 @@ public sealed class BookLoaderTests
                   <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
                 </container>
                 """);
-            WriteEntry(archive, "OEBPS/content.opf", """
+            WriteEntry(archive, "OEBPS/content.opf", $$"""
                 <?xml version="1.0" encoding="UTF-8"?>
-                <package version="2.0" xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid">
+                <package version="{{packageVersion}}" xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid">
                   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>测试 EPUB</dc:title><dc:language>zh-CN</dc:language><dc:identifier id="bookid">test</dc:identifier></metadata>
-                  <manifest><item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/><item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/></manifest>
-                  <spine toc="ncx"><itemref idref="chapter"/></spine>
+                  <manifest>
+                    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+                    <item id="cover" href="cover.xhtml" media-type="application/xhtml+xml"/>
+                    <item id="intro" href="intro.xhtml" media-type="application/xhtml+xml"/>
+                    <item id="ad" href="ad_chapter12.xhtml" media-type="application/xhtml+xml"/>
+                    <item id="chapter" href="chapter.xhtml" media-type="application/xhtml+xml"/>
+                  </manifest>
+                  <spine toc="ncx"><itemref idref="cover" linear="no"/><itemref idref="intro"/><itemref idref="ad"/><itemref idref="chapter"/></spine>
                 </package>
                 """);
             WriteEntry(archive, "OEBPS/toc.ncx", """
                 <?xml version="1.0" encoding="UTF-8"?>
                 <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1"><head/><docTitle><text>测试 EPUB</text></docTitle><navMap><navPoint id="chapter" playOrder="1"><navLabel><text>第一章</text></navLabel><content src="chapter.xhtml"/></navPoint></navMap></ncx>
                 """);
+            WriteEntry(archive, "OEBPS/cover.xhtml", "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><img src=\"cover.jpg\"/></body></html>");
+            WriteEntry(archive, "OEBPS/intro.xhtml", "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p>作者介绍</p><p>作者生平。</p></body></html>");
+            WriteEntry(archive, "OEBPS/ad_chapter12.xhtml", "<html xmlns=\"http://www.w3.org/1999/xhtml\"><body><p>广告内容</p></body></html>");
             WriteEntry(archive, "OEBPS/chapter.xhtml", """
                 <?xml version="1.0" encoding="UTF-8"?>
-                <html xmlns="http://www.w3.org/1999/xhtml"><body><h1>第一章</h1><p>EPUB 正文</p></body></html>
+                <html xmlns="http://www.w3.org/1999/xhtml"><body><p><b>1</b></p><p>EPUB 正文</p></body></html>
                 """);
         }
 
@@ -96,8 +107,10 @@ public sealed class BookLoaderTests
             var book = await BookLoader.LoadEpubAsync(path);
 
             Assert.Equal("测试 EPUB", book.Title);
-            Assert.Single(book.Chapters);
-            Assert.Contains("EPUB 正文", book.Chapters[0].Paragraphs.Select(paragraph => paragraph.PlainText));
+            Assert.Equal(["作者介绍", "1"], book.Chapters.Select(chapter => chapter.Title));
+            Assert.Equal(["ch-1", "ch-3"], book.Chapters.Select(chapter => chapter.Id));
+            Assert.Equal("ch-1-0", book.Chapters[0].Paragraphs[0].Id);
+            Assert.Contains("EPUB 正文", book.Chapters[1].Paragraphs.Select(paragraph => paragraph.PlainText));
         }
         finally
         {

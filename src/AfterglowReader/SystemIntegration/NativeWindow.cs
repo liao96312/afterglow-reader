@@ -89,7 +89,7 @@ internal static class NativeWindow
     internal static void BeginWindowMoveOrResize(IntPtr hwnd, int hitTest)
     {
         ReleaseCapture();
-        PostMessage(hwnd, WmNcLeftButtonDown, new IntPtr(hitTest), IntPtr.Zero);
+        SendMessage(hwnd, WmNcLeftButtonDown, new IntPtr(hitTest), IntPtr.Zero);
     }
 
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
@@ -109,6 +109,9 @@ internal static class NativeWindow
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
     private static extern bool ReleaseCapture();

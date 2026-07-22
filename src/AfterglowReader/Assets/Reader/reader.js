@@ -8,9 +8,15 @@
   const settingsPanel = document.getElementById('settings-panel');
   const fontFamily = document.getElementById('font-family');
   const fontSize = document.getElementById('font-size');
+  const fontWeight = document.getElementById('font-weight');
+  const textColor = document.getElementById('text-color');
   const lineHeight = document.getElementById('line-height');
+  const letterSpacing = document.getElementById('letter-spacing');
   const opacity = document.getElementById('opacity');
+  const opaquePage = document.getElementById('opaque-page');
   const scrollSpeed = document.getElementById('scroll-speed');
+  const settingsConfirm = document.getElementById('settings-confirm');
+  const settingsCancel = document.getElementById('settings-cancel');
   const appLabel = document.getElementById('app-label');
   const toast = document.getElementById('toast');
   const toolbar = document.getElementById('toolbar');
@@ -31,11 +37,15 @@
   let dragState = null;
   let toastTimer = 0;
   let toolbarHideTimer = 0;
+  let toolbarRevealTimer = 0;
   let readerInteractionRequested = false;
   let hasBook = false;
   let completionArmed = false;
   let currentBookKey = '';
   let lastScrollY = 0;
+  let committedSettings = null;
+  let settingsSnapshot = null;
+  let settingsAnchor = null;
 
   const showToast = (message) => {
     if (!toast) return;
@@ -46,11 +56,13 @@
   };
 
   const showToolbar = () => {
+    window.clearTimeout(toolbarRevealTimer);
     document.body.classList.remove('toolbar-hidden');
     window.clearTimeout(toolbarHideTimer);
   };
 
   const hideToolbar = () => {
+    if (!settingsPanel.classList.contains('hidden')) cancelSettings(false);
     document.body.classList.add('toolbar-hidden');
     chapters.classList.add('hidden');
     settingsPanel.classList.add('hidden');
@@ -78,10 +90,14 @@
   settingsPanel.addEventListener('pointerleave', scheduleToolbarHide);
   chapters.addEventListener('pointerenter', showToolbar);
   chapters.addEventListener('pointerleave', scheduleToolbarHide);
-  addEventListener('dblclick', (event) => {
-    if (event.clientY > 64 || event.target.closest('button, #app-label, #settings-panel, #chapters, .window-resize-handle')) return;
-    showToolbar();
-  });
+  addEventListener('click', (event) => {
+    if (!document.body.classList.contains('toolbar-hidden') || event.clientY > 64 || event.target.closest('.window-resize-handle')) return;
+    window.clearTimeout(toolbarRevealTimer);
+    toolbarRevealTimer = window.setTimeout(() => {
+      showToolbar();
+      scheduleToolbarHide();
+    }, 400);
+  }, true);
 
   openFile.onclick = () => {
     showToolbar();
@@ -105,18 +121,94 @@
     chapters.classList.toggle('hidden');
     showToolbar();
   };
-  const publishSettings = () => {
-    window.chrome?.webview?.postMessage(JSON.stringify({ type: 'settingsChanged', fontFamily: fontFamily.value, fontSize: Number(fontSize.value), lineHeight: Number(lineHeight.value), opacity: Number(opacity.value), scrollPixelsPerSecond: Number(scrollSpeed.value) }));
-  };
-  window.openSettings = () => { settingsPanel.classList.remove('hidden'); showToolbar(); };
-  settingsToggle.onclick = () => { settingsPanel.classList.toggle('hidden'); showToolbar(); };
-  [fontFamily, fontSize, lineHeight, opacity, scrollSpeed].forEach(control => control.addEventListener('input', publishSettings));
-  window.applyReaderSettings = (settings) => {
+  const readSettingsControls = () => ({
+    fontFamily: fontFamily.value,
+    fontSize: Number(fontSize.value),
+    fontWeight: fontWeight.value,
+    textColor: textColor.value,
+    lineHeight: Number(lineHeight.value),
+    letterSpacing: Number(letterSpacing.value),
+    opacity: Number(opacity.value),
+    opaquePage: opaquePage.checked,
+    scrollPixelsPerSecond: Number(scrollSpeed.value)
+  });
+  const applySettingsToPage = (settings) => {
     document.documentElement.style.setProperty('--font-family', settings.fontFamily || 'Microsoft YaHei');
     document.documentElement.style.setProperty('--font-size', `${settings.fontSize || 20}px`);
+    document.documentElement.style.setProperty('--font-weight', settings.fontWeight || '400');
+    document.documentElement.style.setProperty('--text-color', settings.textColor || '#2a2521');
     document.documentElement.style.setProperty('--line-height', settings.lineHeight || 1.9);
-    fontFamily.value = settings.fontFamily || 'Microsoft YaHei'; fontSize.value = settings.fontSize || 20; lineHeight.value = settings.lineHeight || 1.9; opacity.value = settings.opacity || 0.94; scrollSpeed.value = settings.scrollPixelsPerSecond || 220;
+    document.documentElement.style.setProperty('--letter-spacing', `${Number(settings.letterSpacing) || 0}px`);
+    document.documentElement.style.setProperty('--chrome-alpha', settings.opacity || 0.94);
+    document.documentElement.style.setProperty('--reader-background', settings.opaquePage ? `rgb(247 243 234 / ${settings.opacity || 0.94})` : 'transparent');
     autoSpeed = settings.scrollPixelsPerSecond || 220;
+  };
+  const fillSettingsControls = (settings) => {
+    fontFamily.value = settings.fontFamily || 'Microsoft YaHei';
+    fontSize.value = settings.fontSize || 20;
+    fontWeight.value = settings.fontWeight || '400';
+    textColor.value = settings.textColor || '#2a2521';
+    lineHeight.value = settings.lineHeight || 1.9;
+    letterSpacing.value = Number(settings.letterSpacing) || 0;
+    opacity.value = settings.opacity || 0.94;
+    opaquePage.checked = Boolean(settings.opaquePage);
+    scrollSpeed.value = settings.scrollPixelsPerSecond || 220;
+  };
+  const beginSettings = () => {
+    if (!settingsSnapshot) {
+      settingsSnapshot = { ...(committedSettings || readSettingsControls()) };
+      settingsAnchor = window.captureCurrentAnchor?.() || null;
+    }
+    settingsPanel.classList.remove('hidden');
+    showToolbar();
+  };
+  const previewSettings = () => {
+    beginSettings();
+    applySettingsToPage(readSettingsControls());
+    if (settingsAnchor?.id) requestAnimationFrame(() => restoreAnchor(settingsAnchor.id, settingsAnchor.offset));
+  };
+  const publishSettings = () => {
+    const settings = readSettingsControls();
+    committedSettings = { ...settings };
+    window.chrome?.webview?.postMessage(JSON.stringify({ type: 'settingsChanged', ...settings }));
+  };
+  const cancelSettings = (close = true) => {
+    if (settingsSnapshot) {
+      fillSettingsControls(settingsSnapshot);
+      applySettingsToPage(settingsSnapshot);
+      if (settingsAnchor?.id) requestAnimationFrame(() => restoreAnchor(settingsAnchor.id, settingsAnchor.offset));
+    }
+    settingsSnapshot = null;
+    settingsAnchor = null;
+    if (close) settingsPanel.classList.add('hidden');
+  };
+  window.openSettings = beginSettings;
+  settingsToggle.onclick = () => settingsPanel.classList.contains('hidden') ? beginSettings() : cancelSettings();
+  [fontFamily, fontSize, fontWeight, textColor, lineHeight, letterSpacing, opacity, opaquePage, scrollSpeed].forEach(control => control.addEventListener('input', previewSettings));
+  settingsConfirm.onclick = () => {
+    publishSettings();
+    settingsSnapshot = null;
+    settingsAnchor = null;
+    settingsPanel.classList.add('hidden');
+    scheduleToolbarHide();
+  };
+  settingsCancel.onclick = () => { cancelSettings(); scheduleToolbarHide(); };
+  window.setFontFamilies = (families) => {
+    const selected = fontFamily.value;
+    fontFamily.replaceChildren();
+    for (const name of families) {
+      const option = document.createElement('option');
+      option.value = name;
+      option.textContent = name;
+      option.style.fontFamily = name;
+      fontFamily.append(option);
+    }
+    fontFamily.value = selected;
+  };
+  window.applyReaderSettings = (settings) => {
+    committedSettings = { ...settings };
+    fillSettingsControls(settings);
+    applySettingsToPage(settings);
   };
   autoScrollButton.onclick = () => {
     if (!autoScroll && scrollY >= Math.max(0, document.documentElement.scrollHeight - innerHeight - 2)) {
@@ -206,9 +298,11 @@
     for (const chapter of book.Chapters) {
       const section = document.createElement('section');
       section.id = chapter.Id;
-      const heading = document.createElement('h2');
-      heading.textContent = chapter.Title;
-      section.append(heading);
+      if (chapter.Title.trim() !== chapter.Paragraphs[0]?.PlainText?.trim()) {
+        const heading = document.createElement('h2');
+        heading.textContent = chapter.Title;
+        section.append(heading);
+      }
       for (const paragraph of chapter.Paragraphs) {
         const node = document.createElement('p');
         node.dataset.paragraphId = paragraph.Id;
@@ -359,28 +453,21 @@
 
   addEventListener('keydown', (event) => {
     if (event.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) return;
-    if (autoScroll) {
-      if (event.key === 'ArrowUp') { autoSpeed = Math.max(10, autoSpeed - 10); event.preventDefault(); }
-      if (event.key === 'ArrowDown') { autoSpeed = Math.min(400, autoSpeed + 10); event.preventDefault(); }
-      if (event.key === ' ') { setAutoScrollState(false); targetScroll = scrollY; event.preventDefault(); }
+    if (!autoScroll) {
+      if (raf && ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'].includes(event.key)) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+        targetScroll = scrollY;
+      }
       return;
     }
-
-    const distance = event.key === 'PageUp' || event.key === 'PageDown'
-      ? innerHeight * 0.9
-      : 80;
-    if (event.key === 'ArrowUp' || event.key === 'PageUp') {
-      targetScroll = clampTarget(scrollY - distance);
-      startAnimation();
-      event.preventDefault();
-    } else if (event.key === 'ArrowDown' || event.key === 'PageDown') {
-      targetScroll = clampTarget(scrollY + distance);
-      startAnimation();
-      event.preventDefault();
-    }
+    if (event.key === 'ArrowUp') { autoSpeed = Math.max(10, autoSpeed - 10); event.preventDefault(); }
+    if (event.key === 'ArrowDown') { autoSpeed = Math.min(400, autoSpeed + 10); event.preventDefault(); }
+    if (event.key === ' ') { setAutoScrollState(false); targetScroll = scrollY; event.preventDefault(); }
   });
 
   addEventListener('scroll', () => {
+    if (!raf && !autoScroll && !dragState) targetScroll = scrollY;
     updateActiveFromScroll();
     if (scrollY > lastScrollY + 1) completionArmed = true;
     lastScrollY = scrollY;
@@ -389,5 +476,6 @@
   }, { passive: true });
 
   showToolbar();
+  scheduleToolbarHide();
   window.chrome?.webview?.postMessage(JSON.stringify({ type: 'readerReady' }));
 })();

@@ -68,7 +68,15 @@ public partial class MainWindow : Window
         Deactivated += OnDeactivated;
         Closing += OnClosing;
         Closed += OnClosed;
+        MouseEnter += OnReaderMouseEnter;
+        PreviewMouseDown += OnReaderPreviewMouseDown;
     }
+
+    private void OnReaderMouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        => RequestReaderInteractionFocus();
+
+    private void OnReaderPreviewMouseDown(object sender, MouseButtonEventArgs e)
+        => RequestReaderInteractionFocus();
 
     private void OnSourceInitialized(object? sender, EventArgs e)
     {
@@ -102,7 +110,7 @@ public partial class MainWindow : Window
         {
             var environment = await CoreWebView2Environment.CreateAsync();
             await ReaderView.EnsureCoreWebView2Async(environment);
-            ReaderView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(255, 247, 243, 234);
+            ReaderView.DefaultBackgroundColor = System.Drawing.Color.Transparent;
             ReaderView.CoreWebView2.Settings.AreDefaultScriptDialogsEnabled = false;
             ReaderView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             ReaderView.CoreWebView2.Settings.AreDevToolsEnabled = false;
@@ -127,6 +135,7 @@ public partial class MainWindow : Window
             };
             ReaderView.NavigateToString(ReaderAssetLoader.LoadHtml());
             await WaitForReaderReadyAsync();
+            await ApplySystemFontsAsync();
             await ApplyReaderSettingsAsync();
             await RestoreLastBookAsync();
             TryFocusReaderIfRequested();
@@ -203,7 +212,7 @@ public partial class MainWindow : Window
     {
         Width = settings.WindowWidth ?? Width;
         Height = settings.WindowHeight ?? Height;
-        Opacity = settings.Opacity;
+        Opacity = 1;
 
         if (settings.WindowLeft is double left
             && settings.WindowTop is double top
@@ -343,13 +352,22 @@ public partial class MainWindow : Window
             return;
         }
 
-        _pendingReaderInteractionFocus = false;
-        _readerInteractionState = ReaderInteractionState.VisibleInteractive;
         var hwnd = new WindowInteropHelper(this).Handle;
         PlatformNativeWindow.ActivateWindow(hwnd);
         Activate();
         ReaderView.Focus();
         Keyboard.Focus(ReaderView);
+        if (!IsActive)
+        {
+            _pendingReaderInteractionFocus = false;
+            _readerInteractionState = ReaderInteractionState.VisiblePassive;
+            ResetReaderInteractionGate();
+            App.LogDiagnostic("Focus", "Reader interaction focus attempt failed; waiting for pointer retry");
+            return;
+        }
+
+        _pendingReaderInteractionFocus = false;
+        _readerInteractionState = ReaderInteractionState.VisibleInteractive;
         App.LogDiagnostic("Focus", "Reader interaction focus acquired after pointer entered window");
     }
 
@@ -370,8 +388,8 @@ public partial class MainWindow : Window
             bounds.Right,
             bounds.Bottom,
             WindowHitTest.ScaleDip(8, dpi),
-            WindowHitTest.ScaleDip(110, dpi),
-            WindowHitTest.ScaleDip(44, dpi));
+            0,
+            0);
         handled = true;
         return new IntPtr(result);
     }
@@ -383,6 +401,7 @@ public partial class MainWindow : Window
         var y = unchecked((short)((value >> 16) & 0xFFFF));
         return new System.Windows.Point(x, y);
     }
+
 
     private void ToggleClickThrough()
     {
@@ -548,24 +567,24 @@ public partial class MainWindow : Window
         catch (BookReaderException exception)
         {
             ShowStatus(restoringLastBook ? "无法恢复上次阅读的书籍。" : exception.Message, hideAfterMilliseconds: 4_000);
-            App.LogDiagnostic("Books", $"open failed: {exception.Message}");
+            App.LogDiagnostic("Books", $"open failed for '{normalizedPath}': {exception}");
             return false;
         }
         catch (UnauthorizedAccessException exception)
         {
-            App.LogDiagnostic("Books", $"open denied: {exception}");
+            App.LogDiagnostic("Books", $"open denied for '{normalizedPath}': {exception}");
             ShowStatus("没有权限读取这本书。", hideAfterMilliseconds: 4_000);
             return false;
         }
         catch (IOException exception)
         {
-            App.LogDiagnostic("Books", $"open I/O failed: {exception}");
+            App.LogDiagnostic("Books", $"open I/O failed for '{normalizedPath}': {exception}");
             ShowStatus("书籍文件无法读取，可能已损坏或正在被占用。", hideAfterMilliseconds: 4_000);
             return false;
         }
         catch (Exception exception)
         {
-            App.LogDiagnostic("Books", $"open failed: {exception}");
+            App.LogDiagnostic("Books", $"open failed for '{normalizedPath}': {exception}");
             ShowStatus(restoringLastBook ? "无法恢复上次阅读的书籍。" : "打开书籍失败，请查看诊断日志。", hideAfterMilliseconds: 4_000);
             return false;
         }
@@ -687,7 +706,7 @@ public partial class MainWindow : Window
     {
         _settings = (_settings with
         {
-            Opacity = Opacity,
+            Opacity = _settings.Opacity,
             WindowLeft = double.IsFinite(Left) ? Left : null,
             WindowTop = double.IsFinite(Top) ? Top : null,
             WindowWidth = double.IsFinite(Width) ? Width : null,
@@ -700,8 +719,19 @@ public partial class MainWindow : Window
     private async Task HandleSettingsChangedAsync(SettingsChangedMessage settings)
     {
         await CaptureCurrentProgressAsync();
-        _settings = (_settings with { FontFamily = string.IsNullOrWhiteSpace(settings.FontFamily) ? _settings.FontFamily : settings.FontFamily, FontSize = settings.FontSize, LineHeight = settings.LineHeight, Opacity = settings.Opacity, ScrollPixelsPerSecond = settings.ScrollPixelsPerSecond }).Normalize();
-        Opacity = _settings.Opacity;
+        _settings = (_settings with
+        {
+            FontFamily = string.IsNullOrWhiteSpace(settings.FontFamily) ? _settings.FontFamily : settings.FontFamily,
+            FontSize = settings.FontSize,
+            LineHeight = settings.LineHeight,
+            Opacity = settings.Opacity,
+            ScrollPixelsPerSecond = settings.ScrollPixelsPerSecond,
+            FontWeight = settings.FontWeight,
+            TextColor = settings.TextColor,
+            LetterSpacing = settings.LetterSpacing,
+            OpaquePage = settings.OpaquePage
+        }).Normalize();
+        Opacity = 1;
         await ApplyReaderSettingsAsync();
         await SaveWindowSettingsAsync();
     }
@@ -710,8 +740,25 @@ public partial class MainWindow : Window
     {
         if (ReaderView.CoreWebView2 is not null && _readerReady.Task.IsCompleted)
         {
-            await ReaderView.CoreWebView2.ExecuteScriptAsync($"window.applyReaderSettings?.({JsonSerializer.Serialize(_settings)});");
+            var payload = JsonSerializer.Serialize(_settings, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            await ReaderView.CoreWebView2.ExecuteScriptAsync($"window.applyReaderSettings?.({payload});");
         }
+    }
+
+    private async Task ApplySystemFontsAsync()
+    {
+        if (ReaderView.CoreWebView2 is null || !_readerReady.Task.IsCompleted)
+        {
+            return;
+        }
+
+        var families = System.Windows.Media.Fonts.SystemFontFamilies
+            .Select(font => font.Source)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.CurrentCultureIgnoreCase)
+            .OrderBy(name => name, StringComparer.CurrentCultureIgnoreCase)
+            .ToArray();
+        await ReaderView.CoreWebView2.ExecuteScriptAsync($"window.setFontFamilies?.({JsonSerializer.Serialize(families)});");
     }
 
     private void OnClosed(object? sender, EventArgs e)
@@ -817,6 +864,7 @@ public partial class MainWindow : Window
             ReaderView.NavigateToString(ReaderAssetLoader.LoadHtml());
             await ready.Task.WaitAsync(TimeSpan.FromSeconds(5));
             _recoveryReady = null;
+            await ApplySystemFontsAsync();
             await ApplyReaderSettingsAsync();
             if (!string.IsNullOrWhiteSpace(currentPath))
             {
@@ -886,6 +934,19 @@ public partial class MainWindow : Window
         }
 
         var hwnd = new WindowInteropHelper(this).Handle;
+        if (hitTest == WindowHitTest.Caption)
+        {
+            try
+            {
+                DragMove();
+            }
+            catch (InvalidOperationException)
+            {
+                // The pointer may already have been released before WebView2 delivered the message.
+            }
+            return;
+        }
+
         PlatformNativeWindow.BeginWindowMoveOrResize(hwnd, hitTest);
     }
 

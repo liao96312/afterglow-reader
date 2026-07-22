@@ -10,6 +10,10 @@ public sealed record ReaderSettings(
     double LineHeight = 1.9,
     double Opacity = 0.94,
     double ScrollPixelsPerSecond = 220,
+    string FontWeight = "400",
+    string TextColor = "#2a2521",
+    double LetterSpacing = 0,
+    bool OpaquePage = false,
     double? WindowLeft = null,
     double? WindowTop = null,
     double? WindowWidth = null,
@@ -23,10 +27,18 @@ public sealed record ReaderSettings(
             LineHeight = Math.Clamp(LineHeight, 1.1, 3.5),
             Opacity = Math.Clamp(Opacity, 0.35, 1),
             ScrollPixelsPerSecond = Math.Clamp(ScrollPixelsPerSecond, 20, 2_000),
+            FontWeight = FontWeight is "400" or "500" or "600" or "700" ? FontWeight : "400",
+            TextColor = IsHexColor(TextColor) ? TextColor.ToLowerInvariant() : "#2a2521",
+            LetterSpacing = Math.Clamp(LetterSpacing, -1, 5),
             WindowWidth = WindowWidth is { } width ? Math.Clamp(width, 360, 2_400) : null,
             WindowHeight = WindowHeight is { } height ? Math.Clamp(height, 240, 2_000) : null,
             LastBookPath = string.IsNullOrWhiteSpace(LastBookPath) ? null : LastBookPath.Trim()
         };
+
+    private static bool IsHexColor(string? value)
+        => value is { Length: 7 }
+            && value[0] == '#'
+            && value.AsSpan(1).IndexOfAnyExcept("0123456789abcdefABCDEF") < 0;
 }
 
 public sealed record BookProgress(string Path, string? ParagraphId, double ParagraphOffset, DateTimeOffset UpdatedAt);

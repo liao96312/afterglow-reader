@@ -1,4 +1,6 @@
 using System.IO;
+using System.Reflection;
+using System.Runtime.Loader;
 using System.Windows.Threading;
 using PlatformNativeWindow = AfterglowReader.SystemIntegration.NativeWindow;
 
@@ -18,9 +20,21 @@ public partial class App : System.Windows.Application
 
     public App()
     {
+        AssemblyLoadContext.Default.Resolving += ResolveCompositionDependency;
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
+
+    private static Assembly? ResolveCompositionDependency(AssemblyLoadContext context, AssemblyName name)
+    {
+        if (name.Name is not ("Microsoft.Windows.SDK.NET" or "WinRT.Runtime"))
+        {
+            return null;
+        }
+
+        var path = Path.Combine(AppContext.BaseDirectory, name.Name + ".dll");
+        return File.Exists(path) ? context.LoadFromAssemblyPath(path) : null;
     }
 
     protected override void OnStartup(System.Windows.StartupEventArgs e)

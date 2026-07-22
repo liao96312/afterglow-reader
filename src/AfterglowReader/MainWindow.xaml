@@ -13,7 +13,8 @@
         Width="720"
         MinHeight="240"
         MinWidth="360"
-        Background="#F7F3EA"
+        Background="Transparent"
+        AllowsTransparency="True"
         SnapsToDevicePixels="True"
         UseLayoutRounding="True"
         WindowStyle="None"
@@ -30,8 +31,8 @@
                             ResizeBorderThickness="8"
                             UseAeroCaptionButtons="False" />
     </shell:WindowChrome.WindowChrome>
-    <Grid Background="#F7F3EA" ClipToBounds="True">
-        <wv2:WebView2 x:Name="ReaderView" />
+    <Grid Background="Transparent" ClipToBounds="True">
+        <wv2:WebView2CompositionControl x:Name="ReaderView" />
 
         <Border x:Name="StatusPanel"
                 HorizontalAlignment="Left"

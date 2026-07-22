@@ -20,6 +20,8 @@
   <ItemGroup>
     <Resource Include="Assets\afterglow.ico" />
     <Content Include="Assets\Reader\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(NuGetPackageRoot)microsoft.windows.sdk.net.ref\10.0.26100.84\lib\net8.0\Microsoft.Windows.SDK.NET.dll" Link="Microsoft.Windows.SDK.NET.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(NuGetPackageRoot)microsoft.windows.sdk.net.ref\10.0.26100.84\lib\net8.0\WinRT.Runtime.dll" Link="WinRT.Runtime.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
