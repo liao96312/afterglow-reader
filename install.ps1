@@ -10,7 +10,7 @@ $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut((Join-Path $startMenu 'AfterglowReader.lnk'))
 $shortcut.TargetPath = Join-Path $target 'AfterglowReader.exe'
 $shortcut.WorkingDirectory = $target
-$shortcut.IconLocation = Join-Path $target 'AfterglowReader.exe'
+$shortcut.IconLocation = Join-Path $target 'Assets\afterglow.ico'
 $shortcut.Save()
 
 Write-Host "Afterglow Reader installed to $target"
