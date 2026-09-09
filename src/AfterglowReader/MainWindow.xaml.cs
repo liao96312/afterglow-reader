@@ -994,7 +994,6 @@ public partial class MainWindow : Window
         await _renderGate.WaitAsync();
         try
         {
-            await SaveProgressNowAsync();
             _selectedChapterId = chapterId;
             _lastAnchorId = _session.GetChapterAnchor(chapterId);
             _lastAnchorOffset = 0;

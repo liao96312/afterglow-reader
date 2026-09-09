@@ -47,6 +47,7 @@ h1 { font-size: 28px; line-height: 1.35; margin: 0 0 18px; }
 h2 { font-size: 22px; line-height: 1.45; margin: 36px 0 14px; scroll-margin-top: 16px; }
 p { margin: 0 0 16px; }
 #toast { position: fixed; z-index: 3; top: 10px; left: 50%; transform: translateX(-50%); max-width: min(80vw, 520px); padding: 7px 12px; border-radius: var(--radius); color: #fff; background: #2a2521e6; font-size: 13px; pointer-events: none; }
+#reading-progress { position: fixed; z-index: 3; left: 16px; bottom: 16px; padding: 7px 11px; border-radius: var(--radius); color: #fff; background: #2a2521d9; font-size: 13px; pointer-events: none; }
 #book-complete { position: fixed; z-index: 3; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px); padding: 10px 12px; border-radius: var(--radius); color: var(--muted); background: rgb(255 253 248 / var(--chrome-alpha)); box-shadow: 0 8px 24px #0002; font-size: 13px; }
 #book-complete.hidden { display: none; }
 #book-complete button { border: 0; border-radius: var(--radius); padding: 6px 9px; color: var(--muted); background: var(--control); cursor: pointer; }

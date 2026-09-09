@@ -19,6 +19,7 @@
   const settingsCancel = document.getElementById('settings-cancel');
   const appLabel = document.getElementById('app-label');
   const toast = document.getElementById('toast');
+  const readingProgress = document.getElementById('reading-progress');
   const toolbar = document.getElementById('toolbar');
   const completion = document.getElementById('book-complete');
   const completionOpen = document.getElementById('complete-open');
@@ -36,6 +37,7 @@
   let progressSequence = 0;
   let dragState = null;
   let toastTimer = 0;
+  let readingProgressTimer = 0;
   let toolbarHideTimer = 0;
   let toolbarRevealTimer = 0;
   let readerInteractionRequested = false;
@@ -53,6 +55,24 @@
     toast.textContent = message;
     toast.hidden = false;
     toastTimer = window.setTimeout(() => { toast.hidden = true; }, 3000);
+  };
+
+  const updateReadingProgress = () => {
+    const pageHeight = Math.max(1, innerHeight);
+    const totalPages = Math.max(1, Math.ceil(document.documentElement.scrollHeight / pageHeight));
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - innerHeight);
+    const ratio = maxScroll ? Math.min(1, scrollY / maxScroll) : 1;
+    const currentPage = Math.min(totalPages, Math.floor(ratio * totalPages) + 1);
+    const percent = Math.round(ratio * 100);
+    readingProgress.textContent = `阅读进度 ${percent}% · 第 ${currentPage} / ${totalPages} 页`;
+  };
+
+  const showReadingProgress = () => {
+    if (!hasBook) return;
+    updateReadingProgress();
+    readingProgress.hidden = false;
+    window.clearTimeout(readingProgressTimer);
+    readingProgressTimer = window.setTimeout(() => { readingProgress.hidden = true; }, 2000);
   };
 
   const showToolbar = () => {
@@ -184,7 +204,8 @@
   };
   window.openSettings = beginSettings;
   settingsToggle.onclick = () => settingsPanel.classList.contains('hidden') ? beginSettings() : cancelSettings();
-  [fontFamily, fontSize, fontWeight, textColor, lineHeight, letterSpacing, opacity, opaquePage, scrollSpeed].forEach(control => control.addEventListener('input', previewSettings));
+  [fontFamily, fontSize, fontWeight, textColor, lineHeight, letterSpacing, opaquePage, scrollSpeed].forEach(control => control.addEventListener('input', previewSettings));
+  opacity.addEventListener('input', () => { opaquePage.checked = true; previewSettings(); });
   settingsConfirm.onclick = () => {
     publishSettings();
     settingsSnapshot = null;
@@ -242,7 +263,10 @@
   };
 
   document.addEventListener('pointerenter', requestReaderInteraction, true);
-  addEventListener('pointermove', requestReaderInteraction, { passive: true });
+  addEventListener('pointermove', (event) => {
+    requestReaderInteraction();
+    if (event.pointerType === 'mouse') showReadingProgress();
+  }, { passive: true });
   window.resetReaderInteraction = () => { readerInteractionRequested = false; };
 
   window.setChapterIndex = (items) => {
@@ -288,6 +312,7 @@
     lastScrollY = scrollY;
     completionArmed = restoringSameBook;
     completion.classList.add('hidden');
+    readingProgress.hidden = true;
     currentBookKey = bookKey;
     setAutoScrollState(false);
     content.replaceChildren();
@@ -472,6 +497,7 @@
     if (scrollY > lastScrollY + 1) completionArmed = true;
     lastScrollY = scrollY;
     updateCompletion();
+    if (!readingProgress.hidden) updateReadingProgress();
     if (!progressTimer) progressTimer = setTimeout(publishProgress, 250);
   }, { passive: true });
 

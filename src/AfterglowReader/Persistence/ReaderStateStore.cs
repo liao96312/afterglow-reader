@@ -82,14 +82,7 @@ public sealed class ReaderStateStore
                     await JsonSerializer.SerializeAsync(stream, value, JsonOptions, cancellationToken).ConfigureAwait(false);
                 }
 
-                if (File.Exists(target))
-                {
-                    File.Replace(temp, target, null);
-                }
-                else
-                {
-                    File.Move(temp, target);
-                }
+                File.Move(temp, target, overwrite: true);
             }
             finally
             {
