@@ -1,5 +1,7 @@
 # 余光阅读器 Afterglow Reader
 
+**语言：** 简体中文
+
 ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078D4?logo=windows&logoColor=white)
 ![.NET](https://img.shields.io/badge/.NET-10-512BD4?logo=dotnet&logoColor=white)
 ![WebView2](https://img.shields.io/badge/Reader-WebView2-0F6CBD?logo=microsoftedge&logoColor=white)
@@ -7,7 +9,7 @@
 
 一个为 Windows 桌面设计的轻量本地阅读器：小窗、透明、可自由拖动缩放，支持 TXT、EPUB 与无 DRM MOBI，并把阅读位置保存在本机。
 
-## 功能
+## 核心能力
 
 | 能力 | 说明 |
 | --- | --- |
@@ -17,7 +19,7 @@
 | 阅读控制 | 目录跳章、自动滚动、F7 自动滚动、F8 隐藏/恢复、Ctrl+Tab 老板键 |
 | 状态安全 | 原子写入、旧缓存兼容、未知新版缓存安全回退 |
 
-## 安装与试用
+## 快速开始
 
 从 [Releases](https://github.com/liao96312/afterglow-reader/releases) 下载 `AfterglowReader-test-win-x64.zip`，解压后运行 `install.cmd`。
 
@@ -37,7 +39,7 @@
 - 自动续读已完成基础验证；连续立即退出与多格式人工回归仍在进行。
 - 设置面板正在收口，第一版仅包含字体、字号、行距、透明度和自动滚动速度。
 
-## 开发
+## 验证
 
 ```powershell
 $dotnet = Join-Path $env:LOCALAPPDATA 'dotnet\dotnet.exe'
@@ -46,3 +48,16 @@ $dotnet = Join-Path $env:LOCALAPPDATA 'dotnet\dotnet.exe'
 ```
 
 测试包与安装脚本位于 `artifacts/AfterglowReader-win-x64`。详细开发路线见 [todolist.md](todolist.md)。
+
+## 目录结构
+
+```text
+src/        阅读器应用、格式解析与本地状态管理
+tests/      自动续读、缓存兼容与格式处理测试
+install.*   Windows 安装脚本
+uninstall.* Windows 卸载脚本
+```
+
+## 当前状态
+
+项目已具备可安装、可续读的 Windows 本地阅读体验；复杂 MOBI/KF8 兼容与设置面板仍在持续收口。
