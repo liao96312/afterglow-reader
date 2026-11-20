@@ -265,8 +265,8 @@ public sealed class BookLoaderTests
             await store.SaveProgressAsync(progress);
             using var settingsDocument = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "settings.json")));
             using var progressDocument = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "progress.json")));
-            Assert.Equal(2, settingsDocument.RootElement.GetProperty("schemaVersion").GetInt32());
-            Assert.Equal(2, progressDocument.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.Equal(3, settingsDocument.RootElement.GetProperty("schemaVersion").GetInt32());
+            Assert.Equal(3, progressDocument.RootElement.GetProperty("schemaVersion").GetInt32());
             Assert.True(settingsDocument.RootElement.TryGetProperty("data", out _));
             Assert.True(progressDocument.RootElement.TryGetProperty("data", out _));
         }

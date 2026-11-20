@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <AssemblyName>AfterglowReader.Setup</AssemblyName>
+    <RootNamespace>AfterglowReader.Setup</RootNamespace>
+    <ApplicationIcon>..\AfterglowReader\Assets\afterglow.ico</ApplicationIcon>
+    <Version>1.0.1</Version>
+    <Product>余光阅读器</Product>
+    <AssemblyTitle>余光阅读器 安装程序</AssemblyTitle>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="payload.zip"
+                      LogicalName="AfterglowReader.Setup.payload.zip"
+                      Condition="Exists('payload.zip')" />
+  </ItemGroup>
+
+</Project>

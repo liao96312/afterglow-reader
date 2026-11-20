@@ -13,7 +13,8 @@
   const lineHeight = document.getElementById('line-height');
   const letterSpacing = document.getElementById('letter-spacing');
   const opacity = document.getElementById('opacity');
-  const opaquePage = document.getElementById('opaque-page');
+  const opacityValue = document.getElementById('opacity-value');
+  const opacityClear = document.getElementById('opacity-clear');
   const scrollSpeed = document.getElementById('scroll-speed');
   const settingsConfirm = document.getElementById('settings-confirm');
   const settingsCancel = document.getElementById('settings-cancel');
@@ -141,26 +142,38 @@
     chapters.classList.toggle('hidden');
     showToolbar();
   };
-  const readSettingsControls = () => ({
-    fontFamily: fontFamily.value,
-    fontSize: Number(fontSize.value),
-    fontWeight: fontWeight.value,
-    textColor: textColor.value,
-    lineHeight: Number(lineHeight.value),
-    letterSpacing: Number(letterSpacing.value),
-    opacity: Number(opacity.value),
-    opaquePage: opaquePage.checked,
-    scrollPixelsPerSecond: Number(scrollSpeed.value)
-  });
+  const readSettingsControls = () => {
+    const backgroundAlpha = clampOpacity(opacity.value);
+    return {
+      fontFamily: fontFamily.value,
+      fontSize: Number(fontSize.value),
+      fontWeight: fontWeight.value,
+      textColor: textColor.value,
+      lineHeight: Number(lineHeight.value),
+      letterSpacing: Number(letterSpacing.value),
+      opacity: backgroundAlpha,
+      opaquePage: backgroundAlpha > 0,
+      scrollPixelsPerSecond: Number(scrollSpeed.value)
+    };
+  };
+  const clampOpacity = (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 0.94;
+    return Math.min(1, Math.max(0, parsed));
+  };
   const applySettingsToPage = (settings) => {
+    const backgroundAlpha = clampOpacity(settings.opacity);
     document.documentElement.style.setProperty('--font-family', settings.fontFamily || 'Microsoft YaHei');
     document.documentElement.style.setProperty('--font-size', `${settings.fontSize || 20}px`);
     document.documentElement.style.setProperty('--font-weight', settings.fontWeight || '400');
     document.documentElement.style.setProperty('--text-color', settings.textColor || '#2a2521');
     document.documentElement.style.setProperty('--line-height', settings.lineHeight || 1.9);
     document.documentElement.style.setProperty('--letter-spacing', `${Number(settings.letterSpacing) || 0}px`);
-    document.documentElement.style.setProperty('--chrome-alpha', settings.opacity || 0.94);
-    document.documentElement.style.setProperty('--reader-background', settings.opaquePage ? `rgb(247 243 234 / ${settings.opacity || 0.94})` : 'transparent');
+    // Chrome (toolbar/panels) stays readable even when the page itself is fully transparent.
+    document.documentElement.style.setProperty('--chrome-alpha', String(Math.max(backgroundAlpha, 0.9)));
+    // Alpha 0 must resolve to a literal transparent page: no warm-white film, only text on the desktop.
+    document.documentElement.style.setProperty('--reader-background', backgroundAlpha > 0 ? `rgb(247 243 234 / ${backgroundAlpha})` : 'transparent');
+    opacityValue.textContent = `${Math.round(backgroundAlpha * 100)}%`;
     autoSpeed = settings.scrollPixelsPerSecond || 220;
   };
   const fillSettingsControls = (settings) => {
@@ -170,8 +183,7 @@
     textColor.value = settings.textColor || '#2a2521';
     lineHeight.value = settings.lineHeight || 1.9;
     letterSpacing.value = Number(settings.letterSpacing) || 0;
-    opacity.value = settings.opacity || 0.94;
-    opaquePage.checked = Boolean(settings.opaquePage);
+    opacity.value = clampOpacity(settings.opacity);
     scrollSpeed.value = settings.scrollPixelsPerSecond || 220;
   };
   const beginSettings = () => {
@@ -204,8 +216,13 @@
   };
   window.openSettings = beginSettings;
   settingsToggle.onclick = () => settingsPanel.classList.contains('hidden') ? beginSettings() : cancelSettings();
-  [fontFamily, fontSize, fontWeight, textColor, lineHeight, letterSpacing, opaquePage, scrollSpeed].forEach(control => control.addEventListener('input', previewSettings));
-  opacity.addEventListener('input', () => { opaquePage.checked = true; previewSettings(); });
+  [fontFamily, fontSize, fontWeight, textColor, lineHeight, letterSpacing, scrollSpeed].forEach(control => control.addEventListener('input', previewSettings));
+  opacity.addEventListener('input', previewSettings);
+  opacityClear.onclick = () => {
+    opacity.value = 0;
+    previewSettings();
+    showToast('背景已设为完全透明');
+  };
   settingsConfirm.onclick = () => {
     publishSettings();
     settingsSnapshot = null;

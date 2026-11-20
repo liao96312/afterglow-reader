@@ -16,17 +16,25 @@
 | 本地阅读 | TXT、EPUB、无 DRM MOBI；正文在本机解析，不上传书籍内容 |
 | 自动续读 | 正常退出后自动打开上次书籍并恢复到阅读位置 |
 | 小窗阅读 | 记忆窗口尺寸、位置与透明度；支持拖动和八方向缩放 |
+| 完全透明 | 背景不透明度可拉到 0（或点“全透明”），只留文字浮在桌面之上 |
 | 阅读控制 | 目录跳章、自动滚动、F7 自动滚动、F8 隐藏/恢复、Ctrl+Tab 老板键 |
 | 状态安全 | 原子写入、旧缓存兼容、未知新版缓存安全回退 |
 
 ## 快速开始
 
-从 [Releases](https://github.com/liao96312/afterglow-reader/releases) 下载 `AfterglowReader-test-win-x64.zip`，解压后运行 `install.cmd`。
+下载 `AfterglowReader-Setup-1.0.1.exe` 直接双击运行：
 
-程序会安装到 `%LocalAppData%\AfterglowReader` 并创建开始菜单快捷方式。无需安装 .NET；系统仍需可用的 WebView2 Evergreen Runtime。
+- 默认安装到 `%LocalAppData%\AfterglowReader`，只写入当前用户，不需要管理员权限；
+- 自动创建开始菜单和桌面快捷方式，并在“设置 → 应用 → 已安装的应用”中登记卸载项；
+- 安装包已内置 .NET 运行时，无需另装 .NET；系统仍需可用的 WebView2 Evergreen Runtime；
+- 卸载走同一目录下的 `Uninstall.exe`，保留阅读进度与设置，重装后可以继续读。
+
+旧的分发包方式（解压后运行 `install.cmd`）仍然保留，用于便携部署。
 
 ## 使用方式
 
+- 点击设置面板里的“背景不透明度”可把背景调到完全透明；拉到 0 或点“全透明”后，窗口只剩文字，正文背景不再有任何底色。
+- 透明度以“正文背景 alpha”为唯一开关：alpha 为 0 时页面、WebView2 与窗口三层都不铺底色；工具条和设置面板另有独立底色，不透明度归零后依然可见可点。
 - 点击顶部“打开文件”选择书籍。
 - 点击“目录”跳转章节；点击“自动滚动”或按 `F7` 控制滚动。
 - 按 `F8` 隐藏/恢复；恢复后把鼠标移入窗口即可继续键盘控制。
@@ -44,18 +52,28 @@
 ```powershell
 $dotnet = Join-Path $env:LOCALAPPDATA 'dotnet\dotnet.exe'
 & $dotnet test AfterglowReader.slnx --configuration Release
-& $dotnet publish src\AfterglowReader\AfterglowReader.csproj -c Release -r win-x64 --self-contained true -o artifacts\AfterglowReader-win-x64
+& $dotnet publish src\AfterglowReader\AfterglowReader.csproj -c Release -r win-x64 --self-contained true -o artifacts\publish
 ```
 
-测试包与安装脚本位于 `artifacts/AfterglowReader-win-x64`。详细开发路线见 [todolist.md](todolist.md)。
+生成安装包（测试 → 发布阅读器 → 打包程序负载 → 生成单文件安装器）：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File build-installer.ps1
+# 输出 artifacts\AfterglowReader-Setup-1.0.1.exe
+```
+
+安装器源码在 `src/AfterglowReader.Setup`，程序负载以 `payload.zip` 嵌入；支持静默安装
+`AfterglowReader-Setup-1.0.1.exe --silent --dir=<路径>` 与静默卸载 `Uninstall.exe --uninstall --silent`。
+详细开发路线见 [todolist.md](todolist.md)。
 
 ## 目录结构
 
 ```text
-src/        阅读器应用、格式解析与本地状态管理
-tests/      自动续读、缓存兼容与格式处理测试
-install.*   Windows 安装脚本
-uninstall.* Windows 卸载脚本
+src/AfterglowReader/        阅读器应用、格式解析与本地状态管理
+src/AfterglowReader.Setup/ 单文件安装器（负载以 payload.zip 嵌入）
+tests/                      自动续读、缓存兼容与格式处理测试
+build-installer.ps1         一键测试 + 发布 + 打包 + 生成安装器
+install.* / uninstall.*     便携部署用的 Windows 安装/卸载脚本
 ```
 
 ## 当前状态

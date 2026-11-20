@@ -400,6 +400,10 @@ BookProgress（以规范化文件完整路径为键）
 - [x] 标准 `WebView2` 已设置 `DefaultBackgroundColor=Transparent`，WPF 根窗口和 `html/body/#reader` 已透明；安装版截图确认正文真实透出桌面且文字、目录正常显示。
 - [x] 标准 `WebView2` 虽能透明渲染，但用户实测透明分层窗下按钮、双击和指针离开事件整体失效；已按既定回退仅替换为 `WebView2CompositionControl`，不改解析器和阅读 DOM。
 - [x] 透明模式固定 `Window.Opacity = 1`；原透明度已改为工具栏/面板及可选暖白正文背景的不透明度，正文文字保持 100%。
+- [x] 背景不透明度下限从 0.35 放宽到 0：滑杆 `min=0`、JS 用 `clampOpacity()` 代替 `settings.opacity || 0.94`（旧写法会把 0 当成缺省值变成 0.94）、`ReaderSettings.Normalize()` 同步收敛到 `[0,1]`，并新增设置面板“全透明”一键按钮。
+- [x] 2026-11-17 收口：`OpaquePage` 改为从 alpha 派生（同一状态不再有两个互相矛盾的开关），去掉设置里的“暖白正文背景”勾选项；状态 schema 升到 v3，读取 v1/v2 时把旧下限 0.35 或“未勾选暖白”迁移成 alpha=0，避免旧缓存把用户重新推回薄雾模式。
+- [x] 透明验收（实测像素）：`opacity=0` 时窗口矩形内只有文字笔画像素与桌面不同（约 7.8%），背景像素与桌面逐点一致；`opacity=0.35` 时 99.99% 像素被暖白薄雾覆盖，即用户报告的“拉到底仍不完全透明”。
+- [x] 新增单文件安装包：`build-installer.ps1` 依次跑测试、发布自包含阅读器、压缩为 `payload.zip`、嵌进 `src/AfterglowReader.Setup` 生成 `artifacts/AfterglowReader-Setup-1.0.0.exe`；安装器负责写文件、开始菜单/桌面快捷方式、HKCU 卸载项与 `Uninstall.exe`，静默安装/卸载已实测，卸载保留 `settings.json`、`progress.json` 与 WebView2 配置。
 - [x] 普通阅读时正文背景全透明；工具栏、目录和设置使用独立承托色，移开后 2 秒隐藏并移除点击命中。页面级回归已验证目录自动关闭与设置重新打开。
 - [x] 字体列表使用 WPF `Fonts.SystemFontFamilies` 枚举、排序并送入 HTML；当前安装版实测 176 个字体选项，选项使用自身字体，不增加字体扫描依赖。
 - [x] 已完成系统字体、字号、四档字重、文字颜色、行高、字距和中文即时预览；设置面板滚动条隐藏但滚轮仍可访问窄窗下方控件。

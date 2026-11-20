@@ -729,7 +729,8 @@ public partial class MainWindow : Window
             FontWeight = settings.FontWeight,
             TextColor = settings.TextColor,
             LetterSpacing = settings.LetterSpacing,
-            OpaquePage = settings.OpaquePage
+            // The page fill follows the alpha alone; there is no separate "opaque page" switch anymore.
+            OpaquePage = settings.Opacity > 0
         }).Normalize();
         Opacity = 1;
         await ApplyReaderSettingsAsync();

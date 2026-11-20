@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AfterglowReader/AfterglowReader.csproj" />
+    <Project Path="src/AfterglowReader.Setup/AfterglowReader.Setup.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AfterglowReader.Tests/AfterglowReader.Tests.csproj" />

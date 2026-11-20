@@ -16,3 +16,6 @@ WebView2/
 *.suo
 Thumbs.db
 Desktop.ini
+
+# Installer payload
+src/AfterglowReader.Setup/payload.zip

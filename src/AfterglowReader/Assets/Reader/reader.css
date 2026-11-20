@@ -11,6 +11,8 @@
   --radius: 8px;
   --space: 12px;
 }
+/* Warm-white page fill is driven by --reader-background; alpha 0 keeps the page fully transparent
+   so only the text is composited over the desktop. */
 html, body { margin: 0; width: 100%; min-height: 100%; background: transparent; overflow-x: hidden; scrollbar-width: none; -ms-overflow-style: none; }
 html::-webkit-scrollbar, body::-webkit-scrollbar { width: 0; height: 0; display: none; }
 body { color: var(--ink); font: 20px/1.9 'Microsoft YaHei', sans-serif; }
@@ -28,6 +30,7 @@ body.toolbar-hidden #toolbar { opacity: 0; transform: translateY(-8px); pointer-
 #settings-panel label { display: inline-flex; align-items: center; gap: 6px; }
 #settings-panel input { width: 90px; }
 #settings-panel input[type="checkbox"] { width: auto; }
+#settings-panel output { min-width: 38px; color: var(--ink); font-variant-numeric: tabular-nums; }
 #settings-panel { scrollbar-width: none; -ms-overflow-style: none; }
 #settings-panel::-webkit-scrollbar { width: 0; height: 0; display: none; }
 #settings-preview { flex-basis: 100%; padding: 8px 10px; border-radius: var(--radius); color: var(--text-color, var(--ink)); background: #fff8; font: var(--font-weight, 400) var(--font-size, 20px)/var(--line-height, 1.9) var(--font-family, 'Microsoft YaHei'), sans-serif; letter-spacing: var(--letter-spacing, 0px); }
