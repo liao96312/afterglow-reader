@@ -22,7 +22,8 @@
 
 ## 快速开始
 
-下载 `AfterglowReader-Setup-1.0.1.exe` 直接双击运行：
+从 [Releases](https://github.com/liao96312/afterglow-reader/releases/latest) 下载
+[`AfterglowReader-Setup-1.0.1.exe`](https://github.com/liao96312/afterglow-reader/releases/download/v1.0.1/AfterglowReader-Setup-1.0.1.exe) 直接双击运行：
 
 - 默认安装到 `%LocalAppData%\AfterglowReader`，只写入当前用户，不需要管理员权限；
 - 自动创建开始菜单和桌面快捷方式，并在“设置 → 应用 → 已安装的应用”中登记卸载项；
